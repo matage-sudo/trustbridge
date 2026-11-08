@@ -1,22 +1,62 @@
+import { createClient } from "./supabase";
+
 const API_URL = "http://127.0.0.1:4000/v1";
-const DEV_TENANT_ID = "ad0a4777-cee4-4e69-894a-410648d8b22a";
-const DEV_USER_ID = "72b1a9dc-35be-4a6c-8588-c02f2aec7fb8";
-const DEV_ROLE = "HOSPITAL_ADMIN";
+
+type Context = {
+  userId: string;
+  tenantId: string;
+  role: string;
+};
+
+let cachedContext: Context | null = null;
+
+async function getContext(): Promise<Context> {
+  if (cachedContext) return cachedContext;
+
+  const supabase = createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error("Not authenticated");
+
+  // Fetch the user's first membership (Phase 3: single-tenant per user)
+  const { data: membership, error: memError } = await supabase
+    .from("memberships")
+    .select("tenantId, role")
+    .eq("userId", user.id)
+    .eq("active", true)
+    .single();
+
+  if (memError || !membership) throw new Error("No active membership found");
+
+  cachedContext = {
+    userId: user.id,
+    tenantId: membership.tenantId,
+    role: membership.role,
+  };
+  return cachedContext;
+}
+
+export function clearApiCache() {
+  cachedContext = null;
+}
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const ctx = await getContext();
+
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "x-tenant-id": DEV_TENANT_ID,
-      "x-user-id": DEV_USER_ID,
-      "x-role": DEV_ROLE,
+      "x-tenant-id": ctx.tenantId,
+      "x-user-id": ctx.userId,
+      "x-role": ctx.role,
       ...options.headers,
     },
   });
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `API Error: ${res.status}`);
   }
+
   return res.json();
 }
