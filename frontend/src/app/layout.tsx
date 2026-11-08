@@ -1,29 +1,19 @@
-﻿import type { Metadata } from "next";
-import { Montserrat } from "next/font/google";
-import { ThemeProvider } from "@/components/ui/ThemeProvider";
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const montserrat = Montserrat({ 
-  subsets: ["latin"], 
-  variable: "--font-montserrat", 
-  display: "swap" 
-});
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: { 
-    default: "TrustBridge — Secure Health Data Governance", 
-    template: "%s | TrustBridge" 
-  },
-  description: "TrustBridge is a zero-trust data governance and access management platform for Ruiru Level 4 Hospital.",
+  title: "TrustBridge",
+  description: "Secure Healthcare Data Governance",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${montserrat.variable} min-h-screen bg-slate-50 font-sans text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100`}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          {children}
-        </ThemeProvider>
+    <html lang="en">
+      <body className={`${inter.className} bg-slate-50 text-slate-900`}>
+        {children}
       </body>
     </html>
   );

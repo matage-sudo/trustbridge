@@ -11,8 +11,11 @@ import { auditRouter } from './routes/audit';
 const log = pino({ level: env.LOG_LEVEL });
 export const app = express();
 app.disable('x-powered-by');
-app.use(helmet());
-app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
+app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(cors({ 
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  credentials: true 
+}));
 app.use(express.json({ limit: '1mb' }));
 app.use(pinoHttp({ logger: log }));
 
@@ -31,8 +34,8 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   res.status(500).json({ error: 'internal_error' });
 });
 
-if (require.main === module) {
-  app.listen(env.PORT, () => {
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(env.PORT, '0.0.0.0', () => {
     log.info(`TrustBridge API listening on http://localhost:${env.PORT}/v1`);
   });
 }
