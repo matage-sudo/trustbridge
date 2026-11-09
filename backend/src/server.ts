@@ -8,6 +8,7 @@ import { tenantMiddleware } from './middleware/tenantMiddleware';
 import { tenantRouter } from './routes/tenant';
 import { auditRouter } from './routes/audit';
 import { dashboardRouter } from './routes/dashboard';
+import { patientsRouter } from './routes/patients';
 
 const log = pino({ level: env.LOG_LEVEL });
 export const app = express();
@@ -29,11 +30,12 @@ v1.use(tenantMiddleware);
 v1.use('/tenants', tenantRouter);
 v1.use('/audit-events', auditRouter);
 v1.use('/dashboard', dashboardRouter);
+v1.use('/patients', patientsRouter);
 app.use('/v1', v1);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   log.error({ err }, 'unhandled');
-  res.status(500).json({ error: 'internal_error' });
+  res.status(500).json({ error: String((err as Error)?.message ?? err) });
 });
 
 if (process.env.NODE_ENV !== 'test') {
