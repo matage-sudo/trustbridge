@@ -84,6 +84,88 @@ patientsRouter.get('/:id', async (req, res, next) => {
   }
 });
 
+// GET /v1/patients/:id/access-history - Patient's view of who touched their data
+patientsRouter.get('/:id/access-history', async (req, res, next) => {
+  try {
+    const { tenantId, userId } = currentTenant();
+    const { id } = req.params;
+
+    const membership = await prisma.membership.findFirst({ where: { tenantId, userId } });
+    if (!membership) {
+      res.status(403).json({ error: 'membership_not_found' });
+      return;
+    }
+
+    const broadRoles = ['HOSPITAL_ADMIN', 'PRIVACY_OFFICER', 'SECURITY_INVESTIGATOR'];
+    const isBroad = broadRoles.includes(membership.role);
+    const isOwnPatient = membership.role === 'PATIENT' && membership.patientId === id;
+
+    if (!isBroad && !isOwnPatient) {
+      res.status(403).json({ error: 'not_authorised_to_view_history' });
+      return;
+    }
+
+    const events = await prisma.auditEvent.findMany({
+      where: {
+        tenantId,
+        OR: [
+          { resourceType: 'patient', resourceId: id },
+          { payload: { path: ['patientId'], equals: id } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+
+    const actorIds = Array.from(new Set(events.map((e) => e.actorUserId).filter(Boolean)));
+    const actors = actorIds.length
+      ? await prisma.userIdentity.findMany({
+          where: { id: { in: actorIds as string[] } },
+          select: { id: true, email: true, displayName: true },
+        })
+      : [];
+    const actorMap = new Map(actors.map((a) => [a.id, a]));
+
+    const memberRoles = actorIds.length
+      ? await prisma.membership.findMany({
+          where: { tenantId, userId: { in: actorIds as string[] } },
+          select: {
+            userId: true,
+            role: true,
+            department: { select: { name: true } },
+          },
+        })
+      : [];
+    const roleMap = new Map(memberRoles.map((m) => [m.userId, m]));
+
+    const enriched = events.map((e) => {
+      const actor = e.actorUserId ? actorMap.get(e.actorUserId) : null;
+      const roleInfo = e.actorUserId ? roleMap.get(e.actorUserId) : null;
+      return {
+        id: e.id,
+        action: e.action,
+        outcome: e.outcome,
+        resourceType: e.resourceType,
+        reasonCode: e.reasonCode,
+        createdAt: e.createdAt,
+        payload: e.payload,
+        actor: actor
+          ? {
+              displayName: actor.displayName || actor.email.split('@')[0],
+              email: actor.email,
+              role: roleInfo?.role ?? 'UNKNOWN',
+              department: roleInfo?.department?.name ?? null,
+            }
+          : null,
+      };
+    });
+
+    res.json({ items: enriched });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /v1/patients - create a new patient
 patientsRouter.post('/', async (req, res, next) => {
   try {

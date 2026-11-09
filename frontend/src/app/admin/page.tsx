@@ -67,7 +67,7 @@ export default function AdminDashboard() {
     );
   }
 
-  const cards = [
+    const cards = [
     { label: "Active Users", value: data.stats.activeUsers, icon: Users, accent: "text-blue-600" },
     { label: "Audit Events", value: data.stats.totalAuditEvents, icon: FileText, accent: "text-amber-600" },
     { label: "Patients", value: data.stats.patients, icon: Users, accent: "text-emerald-600" },
