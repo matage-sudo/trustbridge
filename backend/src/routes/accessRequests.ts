@@ -113,18 +113,12 @@ accessRequestsRouter.post('/', async (req, res, next) => {
   }
 });
 
-// POST /v1/access-requests/:id/approve  — patient, admin, or privacy officer approves
+// POST /v1/access-requests/:id/approve  — admin, privacy officer, OR the patient themself
 accessRequestsRouter.post('/:id/approve', async (req, res, next) => {
   try {
     const me = await currentMembership();
     const { tenantId } = currentTenant();
     const { id } = req.params;
-
-    const broadRoles = ['HOSPITAL_ADMIN', 'PRIVACY_OFFICER'];
-    if (!broadRoles.includes(me.role)) {
-      res.status(403).json({ error: 'not_authorised_to_approve' });
-      return;
-    }
 
     const request = await prisma.accessRequest.findFirst({ where: { id, tenantId } });
     if (!request) {
@@ -136,11 +130,27 @@ accessRequestsRouter.post('/:id/approve', async (req, res, next) => {
       return;
     }
 
+    // Authorisation: broad roles OR the patient whose record is being accessed
+    const broadRoles = ['HOSPITAL_ADMIN', 'PRIVACY_OFFICER', 'SECURITY_INVESTIGATOR'];
+    const isBroad = broadRoles.includes(me.role);
+    const isOwnPatient = me.role === 'PATIENT' && me.patientId === request.patientId;
+
+    if (!isBroad && !isOwnPatient) {
+      await writeAudit({
+        action: 'access_request.approve_denied',
+        resourceType: 'access_request',
+        resourceId: id,
+        outcome: 'deny',
+        reasonCode: 'not_authorised_to_approve',
+      });
+      res.status(403).json({ error: 'not_authorised_to_approve' });
+      return;
+    }
+
     const expiresAt = new Date(
       Date.now() + (request.requestedDurationHours ?? 4) * 60 * 60 * 1000
     );
 
-    // Create the grant
     const [updatedRequest, grant] = await prisma.$transaction([
       prisma.accessRequest.update({
         where: { id },
@@ -166,7 +176,12 @@ accessRequestsRouter.post('/:id/approve', async (req, res, next) => {
       action: 'access_request.approved',
       resourceType: 'access_request',
       resourceId: id,
-      payload: { grantId: grant.id, expiresAt: expiresAt.toISOString() },
+      payload: {
+        grantId: grant.id,
+        expiresAt: expiresAt.toISOString(),
+        approvedBy: me.role,
+        approverId: me.id,
+      },
     });
 
     res.json({ request: updatedRequest, grant });

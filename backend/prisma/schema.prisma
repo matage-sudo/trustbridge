@@ -122,6 +122,7 @@ model Membership {
   role             MembershipRole
   active           Boolean        @default(true)
   departmentId     String?        @db.Uuid
+  patientId        String?        @db.Uuid
   employmentStatus String         @default("ACTIVE")
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -129,6 +130,7 @@ model Membership {
   tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user       UserIdentity @relation(fields: [userId], references: [id], onDelete: Cascade)
   department Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  patient        Patient?       @relation("MembershipPatient", fields: [patientId], references: [id], onDelete: SetNull)
 
   appointments              Appointment[]
   accessRequestsAsRequester AccessRequest[] @relation("AccessRequestsAsRequester")
@@ -137,6 +139,7 @@ model Membership {
   @@unique([tenantId, userId])
   @@index([tenantId])
   @@index([departmentId])
+  @@index([patientId])
   @@map("memberships")
   @@schema("public")
 }
@@ -156,6 +159,7 @@ model Patient {
   consents       Consent[]
   accessRequests AccessRequest[]
   accessGrants   AccessGrant[]
+  membershipsAsPatient Membership[] @relation("MembershipPatient")
 
   @@index([tenantId])
   @@map("patients")
