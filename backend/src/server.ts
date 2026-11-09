@@ -13,6 +13,7 @@ import { staffRouter } from './routes/staff';
 import { appointmentsRouter } from './routes/appointments';
 import { consentsRouter } from './routes/consents';
 import { accessRequestsRouter } from './routes/accessRequests';
+import { rightsRouter } from './routes/rightsRequests';
 
 const log = pino({ level: env.LOG_LEVEL });
 export const app = express();
@@ -39,6 +40,7 @@ v1.use('/staff', staffRouter);
 v1.use('/appointments', appointmentsRouter);
 v1.use('/consents', consentsRouter);
 v1.use('/access-requests', accessRequestsRouter);
+v1.use('/rights-requests', rightsRouter);
 app.use('/v1', v1);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

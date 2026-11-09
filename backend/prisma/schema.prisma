@@ -81,6 +81,7 @@ model Tenant {
   consents       Consent[]
   accessRequests AccessRequest[]
   accessGrants   AccessGrant[]
+  dsrRequests DataSubjectRequest[]
 
   @@map("tenants")
   @@schema("public")
@@ -135,6 +136,7 @@ model Membership {
   appointments              Appointment[]
   accessRequestsAsRequester AccessRequest[] @relation("AccessRequestsAsRequester")
   accessGrantsAsGrantee     AccessGrant[]   @relation("AccessGrantsAsGrantee")
+  dsrRequestsAsRequester DataSubjectRequest[] @relation("DsrRequester")
 
   @@unique([tenantId, userId])
   @@index([tenantId])
@@ -285,5 +287,48 @@ model AuditEvent {
   @@index([tenantId, createdAt])
   @@index([correlationId])
   @@map("audit_events")
+  @@schema("public")
+}
+enum DsrType {
+  ACCESS
+  CORRECTION
+  ERASURE
+  OBJECTION
+  PORTABILITY
+  COMPLAINT
+  @@schema("public")
+}
+
+enum DsrStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  RESPONDED
+  CLOSED
+  @@schema("public")
+}
+
+model DataSubjectRequest {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @db.Uuid
+  referenceNumber String   @unique
+  requesterId    String    @db.Uuid   // Membership.id
+  patientId      String?   @db.Uuid   // the patient this request concerns (usually same as requester's linked patient)
+  type           DsrType
+  status         DsrStatus @default(SUBMITTED)
+  description    String
+  adminResponse  String?
+  respondedBy    String?   @db.Uuid   // Membership.id
+  respondedAt    DateTime?
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  requester Membership @relation("DsrRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([requesterId])
+  @@index([referenceNumber])
+  @@map("tb_data_subject_requests")
   @@schema("public")
 }
