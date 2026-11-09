@@ -10,6 +10,7 @@ import { auditRouter } from './routes/audit';
 import { dashboardRouter } from './routes/dashboard';
 import { patientsRouter } from './routes/patients';
 import { staffRouter } from './routes/staff';
+import { appointmentsRouter } from './routes/appointments';
 
 const log = pino({ level: env.LOG_LEVEL });
 export const app = express();
@@ -33,6 +34,7 @@ v1.use('/audit-events', auditRouter);
 v1.use('/dashboard', dashboardRouter);
 v1.use('/patients', patientsRouter);
 v1.use('/staff', staffRouter);
+v1.use('/appointments', appointmentsRouter);
 app.use('/v1', v1);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

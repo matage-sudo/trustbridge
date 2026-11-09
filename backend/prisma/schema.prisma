@@ -51,6 +51,7 @@ model Tenant {
   memberships Membership[]
   patients    Patient[]
   departments Department[]
+  appointments Appointment[]
 
   @@map("tenants")
   @@schema("public")
@@ -99,6 +100,7 @@ model Membership {
   tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user       UserIdentity @relation(fields: [userId], references: [id], onDelete: Cascade)
   department Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  appointments Appointment[]
 
   @@unique([tenantId, userId])
   @@index([tenantId])
@@ -122,6 +124,7 @@ model Patient {
   updatedAt      DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
 
   @@index([tenantId])
   @@map("patients")
@@ -148,5 +151,35 @@ model AuditEvent {
   @@index([tenantId, createdAt])
   @@index([correlationId])
   @@map("audit_events")
+  @@schema("public")
+}
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  @@schema("public")
+}
+
+model Appointment {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String            @db.Uuid
+  patientId      String            @db.Uuid
+  staffId        String            @db.Uuid
+  scheduledAt    DateTime
+  durationMins   Int               @default(30)
+  reason         String?
+  status         AppointmentStatus @default(SCHEDULED)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  tenant  Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  staff   Membership @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, scheduledAt])
+  @@index([patientId])
+  @@index([staffId])
+  @@map("tb_appointments")
   @@schema("public")
 }
