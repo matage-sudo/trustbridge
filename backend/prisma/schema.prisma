@@ -52,6 +52,7 @@ model Tenant {
   patients    Patient[]
   departments Department[]
   appointments Appointment[]
+  consents     Consent[]
 
   @@map("tenants")
   @@schema("public")
@@ -125,7 +126,7 @@ model Patient {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   appointments Appointment[]
-
+  consents     Consent[]
   @@index([tenantId])
   @@map("patients")
   @@schema("public")
@@ -181,5 +182,37 @@ model Appointment {
   @@index([patientId])
   @@index([staffId])
   @@map("tb_appointments")
+  @@schema("public")
+}
+enum ConsentStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+  @@schema("public")
+}
+
+model Consent {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String        @db.Uuid
+  patientId      String        @db.Uuid
+  purpose        String        // e.g., "TREATMENT", "RESEARCH", "DISCLOSURE"
+  noticeVersion  String        // e.g., "v1.0-2026-11"
+  language       String        @default("en")
+  grantedAt      DateTime      @default(now())
+  effectiveFrom  DateTime      @default(now())
+  expiresAt      DateTime?
+  status         ConsentStatus @default(ACTIVE)
+  revokedAt      DateTime?
+  revocationReason String?
+  capturedBy     String?       @db.Uuid   // membership id of person who captured it
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([patientId])
+  @@map("tb_consents")
   @@schema("public")
 }

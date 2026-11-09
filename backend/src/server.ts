@@ -11,6 +11,7 @@ import { dashboardRouter } from './routes/dashboard';
 import { patientsRouter } from './routes/patients';
 import { staffRouter } from './routes/staff';
 import { appointmentsRouter } from './routes/appointments';
+import { consentsRouter } from './routes/consents';
 
 const log = pino({ level: env.LOG_LEVEL });
 export const app = express();
@@ -35,6 +36,7 @@ v1.use('/dashboard', dashboardRouter);
 v1.use('/patients', patientsRouter);
 v1.use('/staff', staffRouter);
 v1.use('/appointments', appointmentsRouter);
+v1.use('/consents', consentsRouter);
 app.use('/v1', v1);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
