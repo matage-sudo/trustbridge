@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Shield, LogOut, FileText, Plus, CheckCircle, XCircle, Activity } from "lucide-react";
+import { Shield, LogOut, FileText, ShieldCheck, Plus, CheckCircle, XCircle, Activity } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { createClient } from "@/lib/supabase";
 
@@ -19,6 +19,10 @@ export default function PatientPortal() {
   const [consents, setConsents] = useState<Consent[]>([]);
   const [pendingRequests, setPendingRequests] = useState<AccessRequest[]>([]);
   const [accessHistory, setAccessHistory] = useState<AuditEvent[]>([]);
+  const [dsrs, setDsrs] = useState<any[]>([]);
+  const [showDsrForm, setShowDsrForm] = useState(false);
+  const [dsrForm, setDsrForm] = useState({ type: 'ACCESS', description: '' });
+  const [submittingDsr, setSubmittingDsr] = useState(false);
   
   const [actioningId, setActioningId] = useState<string | null>(null);
 
@@ -75,6 +79,22 @@ export default function PatientPortal() {
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();
+  };
+
+  const handleDsrSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittingDsr(true);
+    try {
+      await apiFetch("/rights-requests", {
+        method: "POST",
+        body: JSON.stringify(dsrForm),
+      });
+      setShowDsrForm(false);
+      setDsrForm({ type: 'ACCESS', description: '' });
+      // reload DSRs
+      apiFetch<{ items: any[] }>("/rights-requests").then((r) => setDsrs(r.items));
+    } catch (err: any) { alert(err.message); } 
+    finally { setSubmittingDsr(false); }
   };
 
   return (
@@ -181,6 +201,91 @@ export default function PatientPortal() {
             </ul>
           </div>
         )}
+
+                {/* Legal Rights / DSR Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-indigo-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-indigo-100 bg-indigo-50 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-indigo-600" /> Legal Rights Requests
+              </h2>
+              <p className="text-xs text-indigo-700 mt-1">Exercise your data protection rights (Access, Correction, Erasure, etc.)</p>
+            </div>
+            <button
+              onClick={() => setShowDsrForm(!showDsrForm)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded hover:bg-indigo-700"
+            >
+              <Plus className="h-3 w-3" /> New Request
+            </button>
+          </div>
+
+          {showDsrForm && (
+            <form onSubmit={handleDsrSubmit} className="p-6 border-b border-slate-200 bg-slate-50 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Request Type</label>
+                <select
+                  value={dsrForm.type}
+                  onChange={(e) => setDsrForm({ ...dsrForm, type: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                >
+                  <option value="ACCESS">Access (Get a copy of my data)</option>
+                  <option value="CORRECTION">Correction (Fix inaccurate data)</option>
+                  <option value="ERASURE">Erasure (Delete my data)</option>
+                  <option value="OBJECTION">Objection (Stop processing my data)</option>
+                  <option value="PORTABILITY">Portability (Transfer my data)</option>
+                  <option value="COMPLAINT">Complaint (File a complaint)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Details</label>
+                <textarea
+                  required
+                  rows={3}
+                  value={dsrForm.description}
+                  onChange={(e) => setDsrForm({ ...dsrForm, description: e.target.value })}
+                  placeholder="Please describe your request in detail..."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setShowDsrForm(false)} className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg">Cancel</button>
+                <button type="submit" disabled={submittingDsr} className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-60">
+                  {submittingDsr ? "Submitting..." : "Submit Request"}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {dsrs.length > 0 && (
+            <ul className="divide-y divide-slate-100">
+              {dsrs.map((r) => (
+                <li key={r.id} className="px-6 py-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-medium text-slate-900 text-sm flex items-center gap-2">
+                        <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded">{r.referenceNumber}</span>
+                        {r.type}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">{r.description}</p>
+                      {r.adminResponse && (
+                        <div className="mt-2 p-3 bg-indigo-50 rounded text-xs text-indigo-900 border border-indigo-100">
+                          <strong>Response:</strong> {r.adminResponse}
+                        </div>
+                      )}
+                    </div>
+                    <span className={`inline-flex rounded px-2 py-0.5 text-xs font-semibold ${
+                      r.status === 'CLOSED' ? 'bg-slate-200 text-slate-700' :
+                      r.status === 'RESPONDED' ? 'bg-green-100 text-green-800' :
+                      'bg-amber-100 text-amber-800'
+                    }`}>
+                      {r.status}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-200 flex items-center gap-2">
