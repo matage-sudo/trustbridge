@@ -5,6 +5,7 @@ import pinoHttp from 'pino-http';
 import pino from 'pino';
 import { env } from './config/env';
 import { tenantMiddleware } from './middleware/tenantMiddleware';
+import { sessionTracker } from './middleware/sessionTracker';
 import { tenantRouter } from './routes/tenant';
 import { auditRouter } from './routes/audit';
 import { dashboardRouter } from './routes/dashboard';
@@ -14,6 +15,7 @@ import { appointmentsRouter } from './routes/appointments';
 import { consentsRouter } from './routes/consents';
 import { accessRequestsRouter } from './routes/accessRequests';
 import { rightsRouter } from './routes/rightsRequests';
+import { securityRouter } from './routes/security';
 
 const log = pino({ level: env.LOG_LEVEL });
 export const app = express();
@@ -32,6 +34,7 @@ app.get('/v1/health', (_req, res) => {
 
 const v1 = express.Router();
 v1.use(tenantMiddleware);
+v1.use(sessionTracker);
 v1.use('/tenants', tenantRouter);
 v1.use('/audit-events', auditRouter);
 v1.use('/dashboard', dashboardRouter);
@@ -41,6 +44,7 @@ v1.use('/appointments', appointmentsRouter);
 v1.use('/consents', consentsRouter);
 v1.use('/access-requests', accessRequestsRouter);
 v1.use('/rights-requests', rightsRouter);
+v1.use('/security', securityRouter);
 app.use('/v1', v1);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

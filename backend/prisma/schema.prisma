@@ -82,6 +82,10 @@ model Tenant {
   accessRequests AccessRequest[]
   accessGrants   AccessGrant[]
   dsrRequests DataSubjectRequest[]
+  patientSessions PatientSession[]
+  patientDevices  PatientDevice[]
+  securityAlerts  SecurityAlert[]
+  auditEvents     AuditEvent[]
 
   @@map("tenants")
   @@schema("public")
@@ -330,5 +334,96 @@ model DataSubjectRequest {
   @@index([requesterId])
   @@index([referenceNumber])
   @@map("tb_data_subject_requests")
+  @@schema("public")
+}
+// ============================================================
+// Security Centre (Sessions, Devices, Alerts)
+// ============================================================
+
+enum SessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+  @@schema("public")
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  @@schema("public")
+}
+
+enum AlertKind {
+  NEW_DEVICE
+  NEW_LOCATION
+  SUSPICIOUS_ACTIVITY
+  FAILED_LOGIN_BURST
+  PASSWORD_CHANGED
+  @@schema("public")
+}
+
+model PatientSession {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String        @db.Uuid
+  userId       String        @db.Uuid
+  deviceId     String?       @db.Uuid
+  userAgent    String?
+  ipAddress    String?
+  location     String?
+  status       SessionStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now())
+  lastSeenAt   DateTime      @default(now())
+  revokedAt    DateTime?
+
+  tenant Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device PatientDevice?     @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, userId, status])
+  @@index([lastSeenAt])
+  @@map("tb_patient_sessions")
+  @@schema("public")
+}
+
+model PatientDevice {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  userId          String   @db.Uuid
+  fingerprint     String   @unique
+  label           String
+  userAgent       String?
+  platform        String?
+  trusted         Boolean  @default(false)
+  firstSeenAt     DateTime @default(now())
+  lastSeenAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions PatientSession[]
+
+  @@index([tenantId, userId])
+  @@map("tb_patient_devices")
+  @@schema("public")
+}
+
+model SecurityAlert {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String        @db.Uuid
+  userId       String        @db.Uuid
+  kind         AlertKind
+  severity     AlertSeverity
+  title        String
+  description  String
+  metadata     Json?
+  acknowledged Boolean       @default(false)
+  acknowledgedAt DateTime?
+  createdAt    DateTime      @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, acknowledged])
+  @@index([createdAt])
+  @@map("tb_security_alerts")
   @@schema("public")
 }

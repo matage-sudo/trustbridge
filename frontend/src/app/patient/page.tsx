@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Shield, LogOut, FileText, ShieldCheck, Plus, CheckCircle, XCircle, Activity } from "lucide-react";
+import Link from "next/link";
+import { Shield, LogOut, FileText, Activity, CheckCircle, XCircle, ShieldCheck, Plus } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { createClient } from "@/lib/supabase";
 
@@ -10,6 +11,7 @@ type Patient = { id: string; firstName: string; lastName: string; hospitalNumber
 type Consent = { id: string; purpose: string; noticeVersion: string; status: string; grantedAt: string };
 type AccessRequest = { id: string; purpose: string; reason: string; requestedDurationHours: number; createdAt: string; requester: { user: { displayName: string | null; email: string } } };
 type AuditEvent = { id: string; action: string; outcome: string; createdAt: string; actor: { displayName: string; role: string; department: string | null } | null; payload: any };
+type Dsr = { id: string; referenceNumber: string; type: string; status: string; description: string; adminResponse: string | null; createdAt: string };
 
 export default function PatientPortal() {
   const router = useRouter();
@@ -19,35 +21,31 @@ export default function PatientPortal() {
   const [consents, setConsents] = useState<Consent[]>([]);
   const [pendingRequests, setPendingRequests] = useState<AccessRequest[]>([]);
   const [accessHistory, setAccessHistory] = useState<AuditEvent[]>([]);
-  const [dsrs, setDsrs] = useState<any[]>([]);
+  const [dsrs, setDsrs] = useState<Dsr[]>([]);
+  
+  const [actioningId, setActioningId] = useState<string | null>(null);
   const [showDsrForm, setShowDsrForm] = useState(false);
   const [dsrForm, setDsrForm] = useState({ type: 'ACCESS', description: '' });
   const [submittingDsr, setSubmittingDsr] = useState(false);
-  
-  const [actioningId, setActioningId] = useState<string | null>(null);
 
   useEffect(() => {
-    // 1. Fetch patient profile
     apiFetch<{ items: Patient[] }>("/patients")
-      .then((r) => {
-        if (r.items.length > 0) {
-          setPatient(r.items[0]);
-        }
-      })
+      .then((r) => { if (r.items.length > 0) setPatient(r.items[0]); })
       .catch(console.error);
       
-    // 2. Fetch consents
     apiFetch<{ items: Consent[] }>("/consents")
       .then((r) => setConsents(r.items))
       .catch(console.error);
       
-    // 3. Fetch pending requests
     apiFetch<{ items: AccessRequest[] }>("/access-requests?status=PENDING")
       .then((r) => setPendingRequests(r.items))
       .catch(console.error);
+
+    apiFetch<{ items: Dsr[] }>("/rights-requests")
+      .then((r) => setDsrs(r.items))
+      .catch(console.error);
   }, []);
 
-  // Fetch access history once the patient ID is known
   useEffect(() => {
     if (!patient?.id) return;
     apiFetch<{ items: AuditEvent[] }>(`/patients/${patient.id}/access-history`)
@@ -59,7 +57,6 @@ export default function PatientPortal() {
     setActioningId(id);
     try {
       await apiFetch(`/access-requests/${id}/approve`, { method: "POST" });
-      // reload pending requests
       apiFetch<{ items: AccessRequest[] }>("/access-requests?status=PENDING").then((r) => setPendingRequests(r.items));
     } catch (e: any) { alert(e.message); } 
     finally { setActioningId(null); }
@@ -69,16 +66,9 @@ export default function PatientPortal() {
     setActioningId(id);
     try {
       await apiFetch(`/access-requests/${id}/reject`, { method: "POST", body: JSON.stringify({ reason: "Patient denied via portal" }) });
-      // reload pending requests
       apiFetch<{ items: AccessRequest[] }>("/access-requests?status=PENDING").then((r) => setPendingRequests(r.items));
     } catch (e: any) { alert(e.message); } 
     finally { setActioningId(null); }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
   };
 
   const handleDsrSubmit = async (e: React.FormEvent) => {
@@ -91,10 +81,15 @@ export default function PatientPortal() {
       });
       setShowDsrForm(false);
       setDsrForm({ type: 'ACCESS', description: '' });
-      // reload DSRs
-      apiFetch<{ items: any[] }>("/rights-requests").then((r) => setDsrs(r.items));
+      apiFetch<{ items: Dsr[] }>("/rights-requests").then((r) => setDsrs(r.items));
     } catch (err: any) { alert(err.message); } 
     finally { setSubmittingDsr(false); }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
   };
 
   return (
@@ -108,9 +103,14 @@ export default function PatientPortal() {
               <p className="text-sm text-blue-200">TrustBridge Patient Portal</p>
             </div>
           </div>
-          <button onClick={handleLogout} className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
-            <LogOut className="h-4 w-4" /> Sign out
-          </button>
+          <div className="flex items-center gap-4">
+            <Link href="/patient/security" className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
+              <ShieldCheck className="h-4 w-4" /> Security
+            </Link>
+            <button onClick={handleLogout} className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
+              <LogOut className="h-4 w-4" /> Sign out
+            </button>
+          </div>
         </div>
       </header>
 
@@ -202,7 +202,7 @@ export default function PatientPortal() {
           </div>
         )}
 
-                {/* Legal Rights / DSR Section */}
+        {/* Legal Rights / DSR Section */}
         <div className="bg-white rounded-xl shadow-sm border border-indigo-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-indigo-100 bg-indigo-50 flex items-center justify-between">
             <div>
