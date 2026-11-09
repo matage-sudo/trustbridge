@@ -29,7 +29,18 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/admin/audit");
+        // Fetch the user's role from the database to decide where to redirect
+    const { data: membership } = await supabase
+      .from('memberships')
+      .select('role')
+      .eq('userId', (await supabase.auth.getUser()).data.user?.id)
+      .single();
+
+    if (membership?.role === 'STAFF' || membership?.role === 'NURSE') {
+      router.push("/staff");
+    } else {
+      router.push("/admin");
+    }
     router.refresh();
   };
 
