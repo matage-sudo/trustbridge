@@ -9,6 +9,7 @@ import { tenantRouter } from './routes/tenant';
 import { auditRouter } from './routes/audit';
 import { dashboardRouter } from './routes/dashboard';
 import { patientsRouter } from './routes/patients';
+import { staffRouter } from './routes/staff';
 
 const log = pino({ level: env.LOG_LEVEL });
 export const app = express();
@@ -31,6 +32,7 @@ v1.use('/tenants', tenantRouter);
 v1.use('/audit-events', auditRouter);
 v1.use('/dashboard', dashboardRouter);
 v1.use('/patients', patientsRouter);
+v1.use('/staff', staffRouter);
 app.use('/v1', v1);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

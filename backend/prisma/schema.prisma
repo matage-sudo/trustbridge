@@ -1,25 +1,29 @@
 generator client {
   provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["public", "auth"]
 }
 
-// NOTE — Tenant isolation model (see docs/architecture/ADR-0002):
-// Prisma connects to Supabase as the `postgres` owner role. That role has
-// BYPASSRLS, so RLS does NOT filter Prisma queries. Tenant isolation is
-// enforced in the application layer:
-//   1. TenantMiddleware populates AsyncLocalStorage (src/middleware/tenantContext.ts)
-//   2. Every repository/service query filters by tenantId from currentTenant()
-//   3. tests/tenant-isolation.e2e.test.ts attempts every cross-tenant read
-// RLS is still enabled (see docs/runbooks/supabase-setup.md) to protect any
-// future PostgREST / Supabase-JS access path.
+// Ignore the Supabase Auth schema's models so Prisma won't try to manage them
+model User {
+  id String @id @db.Uuid
+  @@schema("auth")
+  @@ignore
+}
+
+// ============================================================
+// Enums
+// ============================================================
 
 enum TenantStatus {
   ACTIVE
   SUSPENDED
+  @@schema("public")
 }
 
 enum MembershipRole {
@@ -29,10 +33,15 @@ enum MembershipRole {
   PRIVACY_OFFICER
   SECURITY_INVESTIGATOR
   SUPER_ADMIN
+  @@schema("public")
 }
 
+// ============================================================
+// Core tenant models
+// ============================================================
+
 model Tenant {
-  id        String       @id @default(uuid()) @db.Uuid
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   slug      String       @unique
   name      String
   status    TenantStatus @default(ACTIVE)
@@ -41,12 +50,14 @@ model Tenant {
 
   memberships Membership[]
   patients    Patient[]
+  departments Department[]
 
   @@map("tenants")
+  @@schema("public")
 }
 
 model UserIdentity {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email       String   @unique
   displayName String?
   createdAt   DateTime @default(now())
@@ -55,42 +66,50 @@ model UserIdentity {
   memberships Membership[]
 
   @@map("user_identities")
+  @@schema("public")
+}
+
+model Department {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @db.Uuid
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  memberships Membership[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("departments")
+  @@schema("public")
 }
 
 model Membership {
-  id        String         @id @default(uuid()) @db.Uuid
-  tenantId  String         @db.Uuid
-  userId    String         @db.Uuid
-  role      MembershipRole
-  active    Boolean        @default(true)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String         @db.Uuid
+  userId           String         @db.Uuid
+  role             MembershipRole
+  active           Boolean        @default(true)
+  departmentId     String?        @db.Uuid
+  employmentStatus String         @default("ACTIVE")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
-  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   UserIdentity @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user       UserIdentity @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, userId])
   @@index([tenantId])
+  @@index([departmentId])
   @@map("memberships")
+  @@schema("public")
 }
 
-model AuditEvent {
-  id            String   @id @default(uuid()) @db.Uuid
-  tenantId      String?  @db.Uuid
-  actorUserId   String?  @db.Uuid
-  action        String
-  resourceType  String?
-  resourceId    String?
-  outcome       String
-  reasonCode    String?
-  correlationId String?
-  payload       Json?
-  createdAt     DateTime @default(now())
-
-  @@index([tenantId, createdAt])
-  @@index([correlationId])
-  @@map("audit_events")
-}
+// ============================================================
+// Clinical / operational models
+// ============================================================
 
 model Patient {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -106,4 +125,28 @@ model Patient {
 
   @@index([tenantId])
   @@map("patients")
+  @@schema("public")
+}
+
+// ============================================================
+// Audit
+// ============================================================
+
+model AuditEvent {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String?  @db.Uuid
+  actorUserId   String?  @db.Uuid
+  action        String
+  resourceType  String?
+  resourceId    String?
+  outcome       String
+  reasonCode    String?
+  correlationId String?
+  payload       Json?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([correlationId])
+  @@map("audit_events")
+  @@schema("public")
 }
