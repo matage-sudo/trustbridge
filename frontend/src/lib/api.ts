@@ -65,10 +65,10 @@ export function setActingFor(patientId: string | null): void {
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const ctx = await getContext();
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const session = await createClient().auth.getSession();`n  const token = session?.data?.session?.access_token;`n  const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": "application/json",`n      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
       "x-tenant-id": ctx.tenantId,
       "x-user-id": ctx.userId,
       "x-role": ctx.role,
@@ -87,7 +87,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
 // --- Sprint A helpers: multipart upload and binary download ---
 async function rawFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const ctx = await getContext();
-  const res = await fetch(`${API_URL}${path}`, {
+  const session = await createClient().auth.getSession();`n  const token = session?.data?.session?.access_token;`n  const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       "x-tenant-id": ctx.tenantId,
