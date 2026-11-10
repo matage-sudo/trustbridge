@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Shield, Users, Activity, FileText, ArrowRight, LogOut,
   AlertCircle, Loader2,
-UserCog } from "lucide-react";
+UserCog , ShieldCheck } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { createClient } from "@/lib/supabase";
 
@@ -178,6 +178,15 @@ export default function AdminDashboard() {
             </div>
           </div>
         </Link>
+          <Link href="/admin/compliance" className="block rounded-xl border border-gray-200 bg-white hover:border-blue-400 p-5">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="w-5 h-5 text-blue-700" />
+              <div>
+                <h3 className="font-semibold text-gray-900">Compliance Centre</h3>
+                <p className="text-sm text-gray-600">DPA 2019 self-assessment controls.</p>
+              </div>
+            </div>
+          </Link>
 
           </div>
           {data.recentActivity.length === 0 ? (
