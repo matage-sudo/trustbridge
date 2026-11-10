@@ -28,6 +28,7 @@ import { notificationsRouter } from './routes/notifications';
 import { emergencyRouter } from './routes/emergency';
 import { staffDashboardRouter } from './routes/staffDashboard';
 import { complianceRouter } from './routes/compliance';
+import { aiRiskRouter } from './routes/aiRisk';
 
 const log = pino({ level: env.LOG_LEVEL });
 export const app = express();
@@ -63,6 +64,8 @@ v1.use('/me/documents', documentsRouter);
 v1.use('/me/notifications', notificationsRouter);
 v1.use('/emergency', emergencyRouter);
 v1.use('/staff/dashboard', staffDashboardRouter);
+v1.use('/ai-risk', aiRiskRouter);
+v1.use('/staff/ai-risk', aiRiskRouter);
 v1.use('/compliance', complianceRouter);
 v1.use('/me/representatives', meRepresentativesRouter);
 v1.use('/admin/representatives', adminRepresentativesRouter);

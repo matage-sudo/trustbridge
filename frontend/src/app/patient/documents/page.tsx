@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, FolderOpen, Upload, FileText, Image as ImageIcon, Loader2, X, Eye, AlertTriangle, CheckCircle } from "lucide-react";
 import { apiFetch, apiUpload, apiBlob } from "@/lib/api";
@@ -68,10 +69,10 @@ export default function PatientDocumentsPage() {
     };
   }, []);
 
-  const closePreview = () => {
+  const closePreview = useCallback(() => {
     if (preview) URL.revokeObjectURL(preview.url);
     setPreview(null);
-  };
+  }, [preview]);
 
   useEffect(() => {
     if (!preview) return;
@@ -80,7 +81,7 @@ export default function PatientDocumentsPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [preview]);
+  }, [closePreview, preview]);
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
@@ -251,7 +252,16 @@ export default function PatientDocumentsPage() {
               {preview.mime === "application/pdf" ? (
                 <iframe src={preview.url} title={preview.name} className="w-full h-[75vh]" />
               ) : (
-                <img src={preview.url} alt={preview.name} className="mx-auto max-h-[75vh] object-contain" />
+                <div className="flex min-h-[60vh] items-center justify-center p-6">
+                  <Image
+                    src={preview.url}
+                    alt={preview.name}
+                    width={1200}
+                    height={900}
+                    unoptimized
+                    className="max-h-[75vh] w-auto object-contain"
+                  />
+                </div>
               )}
             </div>
           </div>

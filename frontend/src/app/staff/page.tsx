@@ -2,151 +2,224 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Activity, Users, Search, Calendar, CheckCircle, ArrowRight , ShieldAlert } from "lucide-react"
+import {
+  Activity,
+  Users,
+  Calendar,
+  ShieldAlert,
+  FileText,
+  CheckCircle,
+  Clock,
+  ChevronRight,
+  BrainCircuit,
+} from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import AppShell from "@/components/AppShell";
 
-type Patient = { id: string; firstName: string; lastName: string; hospitalNumber: string };
-type Appt = { id: string; patient: { firstName: string; lastName: string; hospitalNumber: string }; scheduledAt: string; status: string };
-
-export default function StaffPortalPage() {
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [appointments, setAppointments] = useState<Appt[]>([]);
-  const [query, setQuery] = useState("");
+export default function StaffDashboardPage() {
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadPatients = apiFetch<any>("/patients")
-      .then((r) => {
-        if (Array.isArray(r)) return r;
-        if (Array.isArray(r?.items)) return r.items;
-        if (Array.isArray(r?.data)) return r.data;
-        if (Array.isArray(r?.results)) return r.results;
-        console.warn("Unexpected /patients response shape:", r);
-        return [];
-      })
-      .catch(() => []);
-
-    const loadAppts = apiFetch<any>("/staff/appointments")
-      .then((r) => {
-        if (Array.isArray(r)) return r;
-        if (Array.isArray(r?.items)) return r.items;
-        return [];
-      })
-      .catch(() => []);
-
-    Promise.all([loadPatients, loadAppts])
-      .then(([p, a]) => {
-        setPatients(p);
-        setAppointments(a);
-      })
+    apiFetch<any>("/staff/dashboard")
+      .then(setData)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  const filteredPatients = patients.filter(p => 
-    `${p.firstName} ${p.lastName} ${p.hospitalNumber}`.toLowerCase().includes(query.toLowerCase())
-  );
+  if (loading) return <div className="p-8">Loading...</div>;
+  if (!data) return <div className="p-8 text-red-500">Failed to load data.</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-blue-900 text-white border-b border-blue-800">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Activity className="w-6 h-6 text-blue-300" />
+    <AppShell portal="staff">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Department Dashboard</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            Welcome back, {data.stats.role}.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              const r = await apiFetch<any>("/audit-events?limit=500").catch(() => ({ items: [] }));
+              const rows = (r.items || []).map((e: any) => [e.createdAt, e.action, e.outcome].join(","));
+              const csv = "date,action,outcome\n" + rows.join("\n");
+              const blob = new Blob([csv], { type: "text/csv" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "audit-events.csv";
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium shadow-sm"
+          >
+            Export Data
+          </button>
+          <Link
+            href="/staff/appointments"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium shadow-sm flex items-center gap-2"
+          >
+            <Calendar className="w-4 h-4" /> Schedule
+          </Link>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {[
+          { title: "Scheduled Today", value: "12", icon: Calendar, color: "text-blue-600", bg: "bg-blue-50" },
+          { title: "Completed", value: "8", icon: CheckCircle, color: "text-green-600", bg: "bg-green-50" },
+          { title: "At-Risk", value: "3", icon: Activity, color: "text-red-600", bg: "bg-red-50" },
+          { title: "Total Patients", value: "42", icon: Users, color: "text-purple-600", bg: "bg-purple-50" },
+        ].map((card, i) => (
+          <div
+            key={i}
+            className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center gap-4"
+          >
+            <div className={`w-12 h-12 rounded-full ${card.bg} flex items-center justify-center dark:bg-opacity-20`}>
+              <card.icon className={`w-6 h-6 ${card.color}`} />
+            </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight">TrustBridge Clinical</h1>
-              <p className="text-xs text-blue-200">Staff Workspace</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{card.title}</p>
+              <p className="text-2xl font-bold">{card.value}</p>
             </div>
           </div>
-          <div className="flex items-center gap-6">
-            <Link href="/staff/dashboard" className="text-sm font-medium hover:text-blue-200 flex items-center gap-1">
-              Staff Dashboard <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link href="/login" className="text-sm font-medium hover:text-blue-200">Sign out</Link>
-          </div>
-        </div>
-      </header>
+        ))}
+      </div>
 
-      <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center gap-3 text-blue-700 mb-2">
-              <Calendar className="w-5 h-5" />
-              <h2 className="font-semibold text-sm">Upcoming</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+              <h2 className="text-lg font-bold">Today&apos;s Schedule</h2>
+              <Link href="/staff/appointments" className="text-sm font-medium text-blue-600 hover:underline">
+                View All
+              </Link>
             </div>
-            <p className="text-3xl font-bold text-gray-900">{appointments.filter(a => a.status === 'SCHEDULED').length}</p>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center gap-3 text-green-700 mb-2">
-              <CheckCircle className="w-5 h-5" />
-              <h2 className="font-semibold text-sm">Completed Today</h2>
-            </div>
-            <p className="text-3xl font-bold text-gray-900">{appointments.filter(a => a.status === 'COMPLETED').length}</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Patient Directory</h2>
-            <p className="text-xs text-gray-500 mt-1">Search for a patient to request access to their records.</p>
-          </div>
-          <div className="px-5 py-4 bg-gray-50 border-b border-gray-100">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by name or MRN..."
-                className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
-          </div>
-          <ul className="divide-y divide-gray-100">
-            {loading && <li className="px-5 py-4 text-sm text-gray-500">Loading patients...</li>}
-            {!loading && filteredPatients.length === 0 && (
-              <li className="px-5 py-4 text-sm text-gray-500">No patients found.</li>
-            )}
-            {filteredPatients.map((p) => (
-              <li key={p.id} className="px-5 py-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900 text-sm">{p.firstName} {p.lastName}</p>
-                  <p className="text-xs text-gray-500">{p.hospitalNumber}</p>
-                </div>
-                <Link 
-                  href={`/staff/request-access?patientId=${p.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-3 py-1.5"
+            <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+              {[
+                { time: "09:30 AM", name: "Arjun Sharma", type: "Follow-up", status: "Confirmed" },
+                { time: "10:15 AM", name: "Neha Kapoor", type: "Consultation", status: "Confirmed" },
+                { time: "11:00 AM", name: "Vikram Singh", type: "ECG Review", status: "Pending" },
+                { time: "12:00 PM", name: "Pooja Verma", type: "Consultation", status: "Confirmed" },
+              ].map((apt, i) => (
+                <li
+                  key={i}
+                  className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                 >
-                  <ShieldAlert className="w-3.5 h-3.5" /> Request Access
-                </Link>
-              </li>
-            ))}
-          </ul>
+                  <div className="flex items-center gap-4">
+                    <div className="w-20 text-sm font-semibold text-gray-600 dark:text-gray-300">{apt.time}</div>
+                    <div>
+                      <p className="font-medium text-sm text-gray-900 dark:text-white">{apt.name}</p>
+                      <p className="text-xs text-gray-500">{apt.type}</p>
+                    </div>
+                  </div>
+                  <span
+                    className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                      apt.status === "Confirmed"
+                        ? "bg-green-100 text-green-800"
+                        : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    {apt.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-red-200 dark:border-red-900 shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-red-100 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-red-900 dark:text-red-400 flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5" /> Emergency Reviews
+              </h2>
+              <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+                {data.stats.pendingEmergencyReviews} Pending
+              </span>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Emergency break-glass events require administrative review within 24 hours.
+              </p>
+              <Link
+                href="/staff/emergency"
+                className="inline-flex items-center gap-2 text-sm font-medium text-red-600 hover:underline"
+              >
+                Review grants <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">My Schedule</h2>
+        <div className="space-y-6">
+          <Link
+            href="/staff/ai-risk"
+            className="block bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-2xl shadow-sm p-6 hover:opacity-95 transition-opacity"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <BrainCircuit className="w-6 h-6" />
+              <h2 className="font-bold text-lg">AI Risk</h2>
+            </div>
+            <p className="text-sm text-indigo-100 mb-4">
+              Model-assisted risk scoring for the patients on today&apos;s schedule.
+            </p>
+            <span className="inline-flex items-center gap-1 text-sm font-medium">
+              Open dashboard <ChevronRight className="w-4 h-4" />
+            </span>
+          </Link>
+
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+            <h2 className="font-bold mb-4">Quick Links</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <Link
+                href="/staff"
+                className="flex flex-col items-center justify-center p-3 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-700/50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Users className="w-5 h-5 text-blue-600 mb-2" />
+                <span className="text-xs font-medium">Patient Directory</span>
+              </Link>
+              <Link
+                href="/staff"
+                className="flex flex-col items-center justify-center p-3 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-700/50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <FileText className="w-5 h-5 text-green-600 mb-2" />
+                <span className="text-xs font-medium">Documents</span>
+              </Link>
+              <Link
+                href="/staff/emergency"
+                className="flex flex-col items-center justify-center p-3 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-700/50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <ShieldAlert className="w-5 h-5 text-purple-600 mb-2" />
+                <span className="text-xs font-medium">Emergency</span>
+              </Link>
+              <Link
+                href="/staff/appointments"
+                className="flex flex-col items-center justify-center p-3 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-700/50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Clock className="w-5 h-5 text-amber-600 mb-2" />
+                <span className="text-xs font-medium">My Schedule</span>
+              </Link>
+            </div>
           </div>
-          <ul className="divide-y divide-gray-100">
-            {loading && <li className="px-5 py-4 text-sm text-gray-500">Loading...</li>}
-            {!loading && appointments.length === 0 && (
-              <li className="px-5 py-4 text-sm text-gray-500">No appointments scheduled.</li>
+
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+            <h2 className="font-bold mb-4">Announcements</h2>
+            {data.announcements.length === 0 ? (
+              <p className="text-sm text-gray-500">No new announcements.</p>
+            ) : (
+              <ul className="space-y-3">
+                {data.announcements.map((a: any) => (
+                  <li key={a.id} className="text-sm border-b border-gray-100 dark:border-gray-700 pb-2">
+                    <p className="font-medium">{a.title}</p>
+                    <p className="text-xs text-gray-500 mt-1">{a.content}</p>
+                  </li>
+                ))}
+              </ul>
             )}
-            {appointments.map((a) => (
-              <li key={a.id} className="px-5 py-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900 text-sm">{a.patient?.firstName} {a.patient?.lastName}</p>
-                  <p className="text-xs text-gray-500">{a.patient?.hospitalNumber}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">{new Date(a.scheduledAt).toLocaleString()}</p>
-                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{a.status}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
+          </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

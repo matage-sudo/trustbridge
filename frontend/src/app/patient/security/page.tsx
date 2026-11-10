@@ -38,7 +38,15 @@ export default function SecurityCentrePage() {
   const [revokingAll, setRevokingAll] = useState(false);
   const [error, setError] = useState("");
 
-  const load = () => {
+  
+  const acknowledgeAlert = async (id: string) => {
+    try {
+      await apiFetch(`/me/security/alerts/${id}/acknowledge`, { method: "POST" });
+      window.location.reload();
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };const load = () => {
     setLoading(true);
     Promise.all([
       apiFetch<{ items: Session[] }>("/security/sessions"),
@@ -254,9 +262,9 @@ export default function SecurityCentrePage() {
             <Shield className="h-4 w-4" /> Security Tips
           </h3>
           <ul className="text-xs text-indigo-800 space-y-1.5">
-            <li>• If you see a device or session you don't recognise, sign it out immediately and change your password.</li>
+            <li>• If you see a device or session you do not recognise, sign it out immediately and change your password.</li>
             <li>• Never share your TrustBridge password with anyone, including hospital staff.</li>
-            <li>• Use a unique password for your health record that you don't use on other sites.</li>
+            <li>• Use a unique password for your health record that you do not use on other sites.</li>
             <li>• Sign out of public or shared computers after each session.</li>
           </ul>
         </div>

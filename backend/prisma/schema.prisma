@@ -9,11 +9,16 @@ datasource db {
   schemas  = ["public", "auth"]
 }
 
+// Ignore the Supabase Auth schema's models so Prisma won't try to manage them
 model User {
   id String @id @db.Uuid
   @@schema("auth")
   @@ignore
 }
+
+// ============================================================
+// Enums
+// ============================================================
 
 enum TenantStatus {
   ACTIVE
@@ -66,9 +71,11 @@ enum AccessPurpose {
   @@schema("public")
 }
 
+// ============================================================
+// Core tenant models
+// ============================================================
+
 model Tenant {
-  representatives Representative[]
-  documents PatientDocument[]
   id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   slug      String       @unique
   name      String
@@ -83,11 +90,6 @@ model Tenant {
   consents       Consent[]
   accessRequests AccessRequest[]
   accessGrants   AccessGrant[]
-  dsrRequests DataSubjectRequest[]
-  patientSessions PatientSession[]
-  patientDevices  PatientDevice[]
-  securityAlerts  SecurityAlert[]
-  auditEvents     AuditEvent[]
 
   @@map("tenants")
   @@schema("public")
@@ -129,7 +131,6 @@ model Membership {
   role             MembershipRole
   active           Boolean        @default(true)
   departmentId     String?        @db.Uuid
-  patientId        String?        @db.Uuid
   employmentStatus String         @default("ACTIVE")
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -137,40 +138,29 @@ model Membership {
   tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user       UserIdentity @relation(fields: [userId], references: [id], onDelete: Cascade)
   department Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  patient        Patient?       @relation("MembershipPatient", fields: [patientId], references: [id], onDelete: SetNull)
 
   appointments              Appointment[]
   accessRequestsAsRequester AccessRequest[] @relation("AccessRequestsAsRequester")
   accessGrantsAsGrantee     AccessGrant[]   @relation("AccessGrantsAsGrantee")
-  dsrRequestsAsRequester DataSubjectRequest[] @relation("DsrRequester")
 
   @@unique([tenantId, userId])
   @@index([tenantId])
   @@index([departmentId])
-  @@index([patientId])
   @@map("memberships")
   @@schema("public")
 }
 
+// ============================================================
+// Clinical / operational models
+// ============================================================
+
 model Patient {
-  notifications Notification[]
-  representatives Representative[]
-  documents PatientDocument[]
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId       String   @db.Uuid
   firstName      String
   lastName       String
   dateOfBirth    DateTime @db.Date
   hospitalNumber String   @unique
-  phone                 String?
-  email                 String?
-  gender                String?
-  nationalId            String?
-  emergencyContactName  String?
-  emergencyContactPhone String?
-  profilePhotoUrl       String?
-  verifiedAt            DateTime?
-  lastProfileUpdateAt   DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -179,7 +169,6 @@ model Patient {
   consents       Consent[]
   accessRequests AccessRequest[]
   accessGrants   AccessGrant[]
-  membershipsAsPatient Membership[] @relation("MembershipPatient")
 
   @@index([tenantId])
   @@map("patients")
@@ -235,6 +224,10 @@ model Consent {
   @@schema("public")
 }
 
+// ============================================================
+// Access Control (Policy Engine)
+// ============================================================
+
 model AccessRequest {
   id                     String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId               String              @db.Uuid
@@ -289,9 +282,11 @@ model AccessGrant {
   @@schema("public")
 }
 
+// ============================================================
+// Audit
+// ============================================================
+
 model AuditEvent {
-  prevHash       String?
-  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String?  @db.Uuid
   actorUserId   String?  @db.Uuid
@@ -307,259 +302,5 @@ model AuditEvent {
   @@index([tenantId, createdAt])
   @@index([correlationId])
   @@map("audit_events")
-  @@schema("public")
-}
-enum DsrType {
-  ACCESS
-  CORRECTION
-  ERASURE
-  OBJECTION
-  PORTABILITY
-  COMPLAINT
-  @@schema("public")
-}
-
-enum DsrStatus {
-  SUBMITTED
-  UNDER_REVIEW
-  RESPONDED
-  CLOSED
-  @@schema("public")
-}
-
-model DataSubjectRequest {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String    @db.Uuid
-  referenceNumber String   @unique
-  requesterId    String    @db.Uuid   // Membership.id
-  patientId      String?   @db.Uuid   // the patient this request concerns (usually same as requester's linked patient)
-  type           DsrType
-  status         DsrStatus @default(SUBMITTED)
-  description    String
-  adminResponse  String?
-  respondedBy    String?   @db.Uuid   // Membership.id
-  respondedAt    DateTime?
-  closedAt       DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  requester Membership @relation("DsrRequester", fields: [requesterId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId, status])
-  @@index([requesterId])
-  @@index([referenceNumber])
-  @@map("tb_data_subject_requests")
-  @@schema("public")
-}
-// ============================================================
-// Security Centre (Sessions, Devices, Alerts)
-// ============================================================
-
-enum SessionStatus {
-  ACTIVE
-  REVOKED
-  EXPIRED
-  @@schema("public")
-}
-
-enum AlertSeverity {
-  LOW
-  MEDIUM
-  HIGH
-  @@schema("public")
-}
-
-enum AlertKind {
-  NEW_DEVICE
-  NEW_LOCATION
-  SUSPICIOUS_ACTIVITY
-  FAILED_LOGIN_BURST
-  PASSWORD_CHANGED
-  @@schema("public")
-}
-
-model PatientSession {
-  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId     String        @db.Uuid
-  userId       String        @db.Uuid
-  deviceId     String?       @db.Uuid
-  userAgent    String?
-  ipAddress    String?
-  location     String?
-  status       SessionStatus @default(ACTIVE)
-  createdAt    DateTime      @default(now())
-  lastSeenAt   DateTime      @default(now())
-  revokedAt    DateTime?
-
-  tenant Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  device PatientDevice?     @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-
-  @@index([tenantId, userId, status])
-  @@index([lastSeenAt])
-  @@map("tb_patient_sessions")
-  @@schema("public")
-}
-
-model PatientDevice {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId        String   @db.Uuid
-  userId          String   @db.Uuid
-  fingerprint     String   @unique
-  label           String
-  userAgent       String?
-  platform        String?
-  trusted         Boolean  @default(false)
-  firstSeenAt     DateTime @default(now())
-  lastSeenAt      DateTime @default(now())
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  sessions PatientSession[]
-
-  @@index([tenantId, userId])
-  @@map("tb_patient_devices")
-  @@schema("public")
-}
-
-model SecurityAlert {
-  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId     String        @db.Uuid
-  userId       String        @db.Uuid
-  kind         AlertKind
-  severity     AlertSeverity
-  title        String
-  description  String
-  metadata     Json?
-  acknowledged Boolean       @default(false)
-  acknowledgedAt DateTime?
-  createdAt    DateTime      @default(now())
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId, userId, acknowledged])
-  @@index([createdAt])
-  @@map("tb_security_alerts")
-  @@schema("public")
-}
-
-model PatientDocument {
-  id               String    @id @default(uuid()) @db.Uuid
-  tenantId         String    @db.Uuid
-  patientId        String    @db.Uuid
-  filename         String
-  storageKey       String    @unique
-  mimeType         String
-  sizeBytes        Int
-  classification   String    @default("GENERAL")
-  watermarkEnabled Boolean   @default(true)
-  uploadedAt       DateTime  @default(now())
-  deletedAt        DateTime?
-
-  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId, patientId, uploadedAt])
-  @@map("patient_documents")
-  @@schema("public")
-}
-
-model Representative {
-  id                         String    @id @default(uuid()) @db.Uuid
-  tenantId                   String    @db.Uuid
-  patientId                  String    @db.Uuid
-  representativeMembershipId String    @db.Uuid
-  authorityType              String
-  scope                      String[]
-  validFrom                  DateTime  @default(now())
-  validUntil                 DateTime?
-  verificationStatus         String    @default("PENDING")
-  initiatedBy                String
-  requestedByMembershipId    String    @db.Uuid
-  approvedByMembershipId     String?   @db.Uuid
-  approvedAt                 DateTime?
-  rejectionReason            String?
-  evidenceNote               String?
-  revokedAt                  DateTime?
-  createdAt                  DateTime  @default(now())
-  updatedAt                  DateTime  @updatedAt
-
-  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId, patientId])
-  @@index([tenantId, representativeMembershipId, verificationStatus])
-  @@map("representatives")
-  @@schema("public")
-}
-
-model Notification {
-  id             String    @id @default(uuid()) @db.Uuid
-  tenantId       String    @db.Uuid
-  patientId      String    @db.Uuid
-  type           String    // e.g. 'access.granted', 'document.uploaded', 'representative.verified'
-  title          String
-  message        String
-  resourceType   String?   // e.g. 'document', 'representative', 'audit_event'
-  resourceId     String?
-  isRead         Boolean   @default(false)
-  readAt         DateTime?
-  createdAt      DateTime  @default(now())
-
-  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId, patientId, createdAt])
-  @@index([tenantId, patientId, isRead])
-  @@map("notifications")
-  @@schema("public")
-}
-
-model EmergencyAccess {
-  id              String    @id @default(uuid()) @db.Uuid
-  tenantId        String    @db.Uuid
-  patientId       String    @db.Uuid
-  staffMemberId   String    @db.Uuid
-  justification   String
-  purpose         String
-  scope           String[]
-  validFrom       DateTime  @default(now())
-  validUntil      DateTime
-  revokedAt       DateTime?
-  revokedBy       String?   @db.Uuid
-  reviewedAt      DateTime?
-  reviewedBy      String?   @db.Uuid
-  reviewOutcome   String?
-  createdAt       DateTime  @default(now())
-
-  @@index([tenantId, patientId])
-  @@index([tenantId, staffMemberId])
-  @@map("emergency_access")
-  @@schema("public")
-}
-
-model ComplianceAssessment {
-  id          String   @id @default(uuid()) @db.Uuid
-  tenantId    String   @db.Uuid
-  framework   String   // e.g., 'DPA_2019'
-  controlId   String   // e.g., 'SEC-1.2'
-  status      String   // 'COMPLIANT', 'NON_COMPLIANT', 'NOT_APPLICABLE'
-  evidence    String?
-  updatedAt   DateTime @updatedAt
-  updatedBy   String   @db.Uuid
-
-  @@map("compliance_assessments")
-  @@schema("public")
-}
-
-model StaffAnnouncement {
-  id        String   @id @default(uuid()) @db.Uuid
-  tenantId  String   @db.Uuid
-  title     String
-  content   String
-  createdAt DateTime @default(now())
-  createdBy String   @db.Uuid
-
-  @@map("staff_announcements")
   @@schema("public")
 }

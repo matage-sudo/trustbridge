@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Calendar, Plus } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -58,7 +58,7 @@ export default function AppointmentsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     const url = filter ? `/appointments?status=${filter}` : "/appointments";
     Promise.all([
@@ -73,11 +73,11 @@ export default function AppointmentsPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  };
+  }, [filter]);
 
   useEffect(() => {
     load();
-  }, [filter]);
+  }, [load]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

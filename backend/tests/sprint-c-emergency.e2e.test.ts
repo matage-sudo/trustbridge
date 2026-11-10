@@ -19,14 +19,8 @@ async function cleanup() {
 }
 
 describe('Emergency break-glass access', () => {
-  beforeEach(async () => {
-    await cleanup();
-  });
-  
-  afterAll(async () => {
-    await cleanup();
-    await prisma.$disconnect();
-  });
+  beforeEach(cleanup);
+  afterAll(async () => { await cleanup(); await prisma.$disconnect(); });
 
   test('ALLOW: staff can request emergency access', async () => {
     const r = await request(app).post('/v1/emergency/access').set(auth()).send(validBody);
@@ -66,10 +60,6 @@ describe('Emergency break-glass access', () => {
 
   test('ALLOW: admin can review (mark justified)', async () => {
     const created = await request(app).post('/v1/emergency/access').set(auth()).send(validBody);
-    if (!created.body?.grant?.id) {
-      console.error('CREATE FAILED:', created.status, created.body);
-      throw new Error('Setup failed: could not create emergency grant');
-    }
     const id = created.body.grant.id;
     const r = await request(app).post(`/v1/emergency/admin/access/${id}/review`).set(auth())
       .send({ outcome: 'JUSTIFIED' });

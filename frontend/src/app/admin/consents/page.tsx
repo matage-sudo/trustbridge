@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Loader2, ShieldCheck, Plus, XCircle } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -46,7 +46,7 @@ export default function ConsentsPage() {
   const [revoking, setRevoking] = useState<string | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     const url = filter ? `/consents?status=${filter}` : "/consents";
     Promise.all([apiFetch<{ items: Consent[] }>(url), apiFetch<{ items: Patient[] }>("/patients")])
@@ -56,11 +56,11 @@ export default function ConsentsPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  };
+  }, [filter]);
 
   useEffect(() => {
     load();
-  }, [filter]);
+  }, [load]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

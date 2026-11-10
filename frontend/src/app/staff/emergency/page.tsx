@@ -147,7 +147,7 @@ export default function EmergencyAccessPage() {
 
         <p className="text-xs text-gray-500">
           Emergency access expires automatically after 30 minutes. To revoke it earlier, use
-          the "Active emergency grants" panel on the staff dashboard.
+          the Active emergency grants panel on the staff dashboard.
         </p>
       </main>
     </div>

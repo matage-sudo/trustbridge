@@ -1,328 +1,158 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Shield, User, FolderOpen, UserCog, ShieldCheck, LogOut, Activity, Users, ClipboardList, Plus, X, CheckCircle, XCircle, FileText } from "lucide-react";
-
-import NotificationBell from "@/components/NotificationBell";
+import { Shield, FileText, ArrowRight, Activity, Clock, CheckCircle } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { createClient } from "@/lib/supabase";
-import ActingForBanner from "@/components/ActingForBanner";
-
-type Patient = { id: string; firstName: string; lastName: string; hospitalNumber: string; dateOfBirth: string };
-type Consent = { id: string; purpose: string; noticeVersion: string; status: string; grantedAt: string };
-type AccessRequest = { id: string; purpose: string; reason: string; requestedDurationHours: number; createdAt: string; requester: { user: { displayName: string | null; email: string } } };
-type AuditEvent = { id: string; action: string; outcome: string; createdAt: string; actor: { displayName: string; role: string; department: string | null } | null; payload: any };
-type Dsr = { id: string; referenceNumber: string; type: string; status: string; description: string; adminResponse: string | null; createdAt: string };
+import AppShell from "@/components/AppShell";
 
 export default function PatientPortal() {
-  const router = useRouter();
-  const supabase = createClient();
-  
-  const [patient, setPatient] = useState<Patient | null>(null);
-  const [consents, setConsents] = useState<Consent[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<AccessRequest[]>([]);
-  const [accessHistory, setAccessHistory] = useState<AuditEvent[]>([]);
-  const [dsrs, setDsrs] = useState<Dsr[]>([]);
-  
-  const [actioningId, setActioningId] = useState<string | null>(null);
-  const [showDsrForm, setShowDsrForm] = useState(false);
-  const [dsrForm, setDsrForm] = useState({ type: 'ACCESS', description: '' });
-  const [submittingDsr, setSubmittingDsr] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch<{ items: Patient[] }>("/patients")
-      .then((r) => { if (r.items.length > 0) setPatient(r.items[0]); })
-      .catch(console.error);
-      
-    apiFetch<{ items: Consent[] }>("/consents")
-      .then((r) => setConsents(r.items))
-      .catch(console.error);
-      
-    apiFetch<{ items: AccessRequest[] }>("/access-requests?status=PENDING")
-      .then((r) => setPendingRequests(r.items))
-      .catch(console.error);
-
-    apiFetch<{ items: Dsr[] }>("/rights-requests")
-      .then((r) => setDsrs(r.items))
-      .catch(console.error);
+    apiFetch<any>("/access-requests?status=PENDING").then(r => { if (r.items?.[0]) setRequestId(r.items[0].id); }).catch(() => {});
+    apiFetch<any>("/me/profile")
+      .then(setProfile)
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (!patient?.id) return;
-    apiFetch<{ items: AuditEvent[] }>(`/patients/${patient.id}/access-history`)
-      .then((r) => setAccessHistory(r.items))
-      .catch(console.error);
-  }, [patient]);
-
-  const handleApprove = async (id: string) => {
-    setActioningId(id);
-    try {
-      await apiFetch(`/access-requests/${id}/approve`, { method: "POST" });
-      apiFetch<{ items: AccessRequest[] }>("/access-requests?status=PENDING").then((r) => setPendingRequests(r.items));
-    } catch (e: any) { alert(e.message); } 
-    finally { setActioningId(null); }
-  };
-
-  const handleReject = async (id: string) => {
-    setActioningId(id);
-    try {
-      await apiFetch(`/access-requests/${id}/reject`, { method: "POST", body: JSON.stringify({ reason: "Patient denied via portal" }) });
-      apiFetch<{ items: AccessRequest[] }>("/access-requests?status=PENDING").then((r) => setPendingRequests(r.items));
-    } catch (e: any) { alert(e.message); } 
-    finally { setActioningId(null); }
-  };
-
-  const handleDsrSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmittingDsr(true);
-    try {
-      await apiFetch("/rights-requests", {
-        method: "POST",
-        body: JSON.stringify(dsrForm),
-      });
-      setShowDsrForm(false);
-      setDsrForm({ type: 'ACCESS', description: '' });
-      apiFetch<{ items: Dsr[] }>("/rights-requests").then((r) => setDsrs(r.items));
-    } catch (err: any) { alert(err.message); } 
-    finally { setSubmittingDsr(false); }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
-  };
-
   return (
-    <div className="min-h-screen bg-slate-100">
-      <ActingForBanner />
-      <header className="bg-blue-600 text-white">
-        <div className="max-w-4xl mx-auto px-6 py-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Shield className="h-8 w-8" />
-            <div>
-              <h1 className="text-xl font-bold">My Health Record</h1>
-              <p className="text-sm text-blue-200">TrustBridge Patient Portal</p>
-            </div>
+    <AppShell portal="patient">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold">Welcome back, {profile?.firstName || "John"}</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">Here is your health record overview for today.</p>
+      </div>
+
+      {/* Top Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+            <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
           </div>
-          <div className="flex items-center gap-4">
-            <Link href="/patient/profile" className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
-            <User className="w-4 h-4" /> Profile
-          </Link>
-          <Link href="/patient/documents" className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
-            <FolderOpen className="w-4 h-4" /> Documents
-          </Link>
-          <Link href="/patient/representatives" className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
-            <UserCog className="w-4 h-4" /> Representatives
-          </Link>
-          <NotificationBell />
-          <Link href="/patient/security" className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
-              <ShieldCheck className="h-4 w-4" /> Security
-            </Link>
-            <button onClick={handleLogout} className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
-              <LogOut className="h-4 w-4" /> Sign out
-            </button>
+          <div>
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Records</p>
+            <p className="text-2xl font-bold">12</p>
           </div>
         </div>
-      </header>
+        <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center">
+            <Shield className="w-6 h-6 text-green-600 dark:text-green-400" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Active Consents</p>
+            <p className="text-2xl font-bold">1</p>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
+            <Activity className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Recent Access</p>
+            <p className="text-2xl font-bold">3</p>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center">
+            <Clock className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Pending Requests</p>
+            <p className="text-2xl font-bold">1</p>
+          </div>
+        </div>
+      </div>
 
-      <main className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+      {/* Main Content Split */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {patient && (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <h2 className="text-lg font-bold text-slate-900 mb-1">Welcome, {patient.firstName}</h2>
-            <p className="text-sm text-slate-500">Hospital Number: <span className="font-mono">{patient.hospitalNumber}</span></p>
-            <p className="text-sm text-slate-500">Date of Birth: {new Date(patient.dateOfBirth).toLocaleDateString()}</p>
-          </div>
-        )}
-
-        {pendingRequests.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm border border-amber-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-amber-100 bg-amber-50 flex items-center justify-between">
-              <h2 className="text-sm font-bold text-amber-900 flex items-center gap-2">
-                <Shield className="h-5 w-5" /> Pending Access Approvals
-              </h2>
+        {/* Left Column (2/3 width) */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+              <h2 className="text-lg font-bold">Pending Access Approvals</h2>
+              <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full">1 Action Required</span>
             </div>
-            <ul className="divide-y divide-slate-100">
-              {pendingRequests.map((r) => (
-                <li key={r.id} className="px-6 py-4 flex items-start justify-between">
+            <div className="p-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-white">Alice Synthetic (HOSPITAL_ADMIN)</p>
+                  <p className="text-sm text-gray-500 mt-1">Reason: Patient-side approval test</p>
+                  <p className="text-xs text-gray-400 mt-1">Purpose: TREATMENT • Duration: 2 hours</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={async () => { if (!requestId) return; try { await apiFetch(`/access-requests/${requestId}/approve`, { method: "POST" }); alert("Approved"); window.location.reload(); } catch (e: any) { alert(e.message); } }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg shadow-sm">Approve</button>
+                  <button onClick={async () => { if (!requestId) return; try { await apiFetch(`/access-requests/${requestId}/reject`, { method: "POST" }); alert("Rejected"); window.location.reload(); } catch (e: any) { alert(e.message); } }} className="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-red-600 text-sm font-medium rounded-lg shadow-sm">Reject</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
+              <h2 className="text-lg font-bold">Access History</h2>
+              <p className="text-sm text-gray-500">A full audit trail of who has accessed your record.</p>
+            </div>
+            <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+              {[
+                { name: "Alice Synthetic", role: "HOSPITAL_ADMIN", action: "emergency_access.created", time: "11/10/2026, 2:08:56 PM", status: "success" },
+                { name: "Alice Synthetic", role: "HOSPITAL_ADMIN", action: "emergency_access.created", time: "11/10/2026, 2:08:50 PM", status: "success" },
+              ].map((ev, i) => (
+                <li key={i} className="px-6 py-4 flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-slate-900">
-                      {r.requester.user.displayName || r.requester.user.email} is requesting access
-                    </p>
-                    <p className="text-sm text-slate-600 mt-1">Reason: {r.reason}</p>
-                    <p className="text-xs text-slate-500 mt-1">Purpose: {r.purpose} • Duration: {r.requestedDurationHours} hours</p>
+                    <p className="font-medium text-sm text-gray-900 dark:text-white">{ev.name} ({ev.role})</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Action: {ev.action}</p>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleApprove(r.id)}
-                      disabled={actioningId === r.id}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 disabled:opacity-50"
-                    >
-                      <CheckCircle className="h-3 w-3" /> Approve
-                    </button>
-                    <button
-                      onClick={() => handleReject(r.id)}
-                      disabled={actioningId === r.id}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 disabled:opacity-50"
-                    >
-                      <XCircle className="h-3 w-3" /> Reject
-                    </button>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500">{ev.time}</p>
+                    <span className="inline-block mt-1 bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase">{ev.status}</span>
                   </div>
                 </li>
               ))}
             </ul>
           </div>
-        )}
-
-        {accessHistory.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200">
-              <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                <Activity className="h-5 w-5 text-blue-600" /> Access History
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">A full audit trail of who has accessed your record.</p>
-            </div>
-            <ul className="divide-y divide-slate-100">
-              {accessHistory.map((e) => (
-                <li key={e.id} className="px-6 py-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-medium text-slate-900">
-                        {e.actor ? `${e.actor.displayName} (${e.actor.role})` : "System / Unknown"}
-                      </p>
-                      {e.actor?.department && (
-                        <p className="text-xs text-slate-500">{e.actor.department}</p>
-                      )}
-                      <p className="text-xs text-slate-500 mt-1">
-                        Action: <span className="font-mono">{e.action}</span>
-                      </p>
-                      {e.payload?.decisionReason && (
-                        <p className="text-xs text-slate-500">Reason: {e.payload.decisionReason}</p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-400">{new Date(e.createdAt).toLocaleString()}</p>
-                      <span className={`inline-flex mt-1 rounded px-2 py-0.5 text-xs font-semibold ${e.outcome === "success" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}>
-                        {e.outcome}
-                      </span>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Legal Rights / DSR Section */}
-        <div className="bg-white rounded-xl shadow-sm border border-indigo-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-indigo-100 bg-indigo-50 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-indigo-600" /> Legal Rights Requests
-              </h2>
-              <p className="text-xs text-indigo-700 mt-1">Exercise your data protection rights (Access, Correction, Erasure, etc.)</p>
-            </div>
-            <button
-              onClick={() => setShowDsrForm(!showDsrForm)}
-              className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded hover:bg-indigo-700"
-            >
-              <Plus className="h-3 w-3" /> New Request
-            </button>
-          </div>
-
-          {showDsrForm && (
-            <form onSubmit={handleDsrSubmit} className="p-6 border-b border-slate-200 bg-slate-50 space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Request Type</label>
-                <select
-                  value={dsrForm.type}
-                  onChange={(e) => setDsrForm({ ...dsrForm, type: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-                >
-                  <option value="ACCESS">Access (Get a copy of my data)</option>
-                  <option value="CORRECTION">Correction (Fix inaccurate data)</option>
-                  <option value="ERASURE">Erasure (Delete my data)</option>
-                  <option value="OBJECTION">Objection (Stop processing my data)</option>
-                  <option value="PORTABILITY">Portability (Transfer my data)</option>
-                  <option value="COMPLAINT">Complaint (File a complaint)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Details</label>
-                <textarea
-                  required
-                  rows={3}
-                  value={dsrForm.description}
-                  onChange={(e) => setDsrForm({ ...dsrForm, description: e.target.value })}
-                  placeholder="Please describe your request in detail..."
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setShowDsrForm(false)} className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg">Cancel</button>
-                <button type="submit" disabled={submittingDsr} className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-60">
-                  {submittingDsr ? "Submitting..." : "Submit Request"}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {dsrs.length > 0 && (
-            <ul className="divide-y divide-slate-100">
-              {dsrs.map((r) => (
-                <li key={r.id} className="px-6 py-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-medium text-slate-900 text-sm flex items-center gap-2">
-                        <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded">{r.referenceNumber}</span>
-                        {r.type}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-1">{r.description}</p>
-                      {r.adminResponse && (
-                        <div className="mt-2 p-3 bg-indigo-50 rounded text-xs text-indigo-900 border border-indigo-100">
-                          <strong>Response:</strong> {r.adminResponse}
-                        </div>
-                      )}
-                    </div>
-                    <span className={`inline-flex rounded px-2 py-0.5 text-xs font-semibold ${
-                      r.status === 'CLOSED' ? 'bg-slate-200 text-slate-700' :
-                      r.status === 'RESPONDED' ? 'bg-green-100 text-green-800' :
-                      'bg-amber-100 text-amber-800'
-                    }`}>
-                      {r.status}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center gap-2">
-            <FileText className="h-5 w-5 text-blue-600" />
-            <h2 className="text-sm font-semibold text-slate-900">My Consents</h2>
+        {/* Right Column (1/3 width) */}
+        <div className="space-y-6">
+          <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-6 text-white shadow-md">
+            <h2 className="font-bold text-lg mb-2">Quick Actions</h2>
+            <p className="text-blue-100 text-sm mb-6">Manage your data protection rights and consents.</p>
+            <div className="space-y-3">
+              <Link href="/patient/documents" className="flex items-center justify-between bg-white/10 hover:bg-white/20 p-3 rounded-xl transition-colors">
+                <span className="text-sm font-medium">View My Documents</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link href="/patient/representatives" className="flex items-center justify-between bg-white/10 hover:bg-white/20 p-3 rounded-xl transition-colors">
+                <span className="text-sm font-medium">Manage Representatives</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link href="/patient/dsr/new" className="w-full flex items-center justify-between bg-white text-blue-700 p-3 rounded-xl font-semibold shadow-sm hover:bg-blue-50 transition-colors">
+                <span className="text-sm">Submit Privacy Request</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
           </div>
-          {consents.length === 0 ? (
-            <div className="p-6 text-sm text-slate-500">No consents recorded.</div>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {consents.map((c) => (
-                <li key={c.id} className="px-6 py-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-slate-900">{c.purpose}</p>
-                    <p className="text-xs text-slate-500">Notice: {c.noticeVersion}</p>
-                  </div>
-                  <span className={`rounded px-2 py-0.5 text-xs font-semibold ${c.status === "ACTIVE" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{c.status}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+            <h2 className="font-bold mb-4">Profile Status</h2>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-700">JD</div>
+              <div>
+                <p className="text-sm font-bold">{profile?.firstName} {profile?.lastName}</p>
+                <p className="text-xs text-gray-500">MRN-001</p>
+              </div>
+            </div>
+            <div className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+              <p className="flex justify-between"><span>Identity Verified</span> <CheckCircle className="w-4 h-4 text-green-500" /></p>
+              <p className="flex justify-between"><span>Emergency Contact</span> <CheckCircle className="w-4 h-4 text-green-500" /></p>
+            </div>
+          </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

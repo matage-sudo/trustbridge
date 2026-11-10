@@ -2,214 +2,143 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
-  Shield, Users, Activity, FileText, ArrowRight, LogOut,
-  AlertCircle, Loader2,
-UserCog , ShieldCheck } from "lucide-react";
+  Activity, Users, FileText, Calendar, ShieldCheck, UserCog,
+  Loader2, AlertTriangle, CheckCircle, ArrowRight,
+} from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { createClient } from "@/lib/supabase";
+import AppShell from "@/components/AppShell";
 
 type Summary = {
-  tenant: { id: string; name: string; slug: string } | null;
-  stats: {
-    activeUsers: number;
-    totalAuditEvents: number;
-    patients: number;
-    appointments: number;
-    consents: number;
-  };
-  recentActivity: {
-    id: string;
-    action: string;
-    outcome: string;
-    timestamp: string;
-  }[];
+  activeUsers?: number;
+  auditEvents?: number;
+  patients?: number;
+  appointments?: number;
+  consents?: number;
 };
 
-export default function AdminDashboard() {
-  const router = useRouter();
-  const supabase = createClient();
-  const [data, setData] = useState<Summary | null>(null);
-  const [error, setError] = useState<string | null>(null);
+type AuditRow = {
+  id: string;
+  action: string;
+  outcome: string;
+  createdAt: string;
+  actorUserId: string | null;
+};
+
+export default function AdminPage() {
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [recent, setRecent] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    apiFetch<Summary>("/dashboard/summary")
-      .then(setData)
-      .catch((err) => setError(err.message))
+    Promise.all([
+      apiFetch<Summary>("/dashboard/summary").catch(() => ({})),
+      apiFetch<{ items: AuditRow[] }>("/audit-events?limit=5").catch(() => ({ items: [] })),
+    ])
+      .then(([s, a]) => {
+        setSummary(s);
+        setRecent(a?.items ?? []);
+      })
+      .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
-  };
+  const KPI_CARDS = [
+    { label: "Active Users", value: summary?.activeUsers ?? 0, icon: Users, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-900/20" },
+    { label: "Audit Events", value: summary?.auditEvents ?? 0, icon: FileText, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-900/20" },
+    { label: "Patients", value: summary?.patients ?? 0, icon: Users, color: "text-green-600", bg: "bg-green-50 dark:bg-green-900/20" },
+    { label: "Appointments", value: summary?.appointments ?? 0, icon: Calendar, color: "text-purple-600", bg: "bg-purple-50 dark:bg-purple-900/20" },
+    { label: "Active Consents", value: summary?.consents ?? 0, icon: ShieldCheck, color: "text-red-600", bg: "bg-red-50 dark:bg-red-900/20" },
+  ];
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
-        <div className="bg-white rounded-xl p-8 shadow-sm border border-red-200 max-w-md">
-          <AlertCircle className="h-8 w-8 text-red-600 mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-center mb-2">Could not load dashboard</h2>
-          <p className="text-sm text-slate-500 text-center">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-    const cards = [
-    { label: "Active Users", value: data.stats.activeUsers, icon: Users, accent: "text-blue-600" },
-    { label: "Audit Events", value: data.stats.totalAuditEvents, icon: FileText, accent: "text-amber-600" },
-    { label: "Patients", value: data.stats.patients, icon: Users, accent: "text-emerald-600" },
-    { label: "Appointments", value: data.stats.appointments, icon: Activity, accent: "text-purple-600" },
-    { label: "Active Consents", value: data.stats.consents, icon: Shield, accent: "text-rose-600" },
+  const NAV_CARDS = [
+    { href: "/admin/representatives", title: "Representatives", desc: "Verify, reject or revoke patient-representative grants.", icon: UserCog },
+    { href: "/admin/compliance", title: "Compliance Centre", desc: "DPA 2019 self-assessment controls.", icon: ShieldCheck },
+    { href: "/admin/audit", title: "Audit Log", desc: "Full audit trail of every action.", icon: Activity },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Shield className="h-7 w-7 text-blue-600" />
-            <div>
-              <h1 className="text-lg font-bold text-slate-900">TrustBridge SOC</h1>
-              <p className="text-xs text-slate-500">{data.tenant?.name}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/admin/audit"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-100"
-            >
-              Audit Log
-            </Link>
-            <Link
-              href="/admin/staff"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-100"
-            >
-              Staff
-            </Link>
-            <Link
-              href="/admin/appointments"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-100"
-            >
-              Appointments
-            </Link>
-            <Link
-              href="/admin/consents"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-100"
-            >
-              Consents
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-100"
-            >
-              <LogOut className="h-4 w-4" /> Sign out
-            </button>
-          </div>
-        </div>
-      </header>
+    <AppShell portal="admin">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">Demo Hospital Alpha &mdash; Synthetic workspace</p>
+      </div>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-          {cards.map((c) => (
-            <div key={c.label} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <c.icon className={`h-4 w-4 ${c.accent}`} />
-                <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">{c.label}</span>
-              </div>
-              <div className="text-2xl font-bold text-slate-900">{c.value}</div>
-            </div>
-          ))}
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 text-sm p-3 mb-6">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /> <span>{error}</span>
         </div>
+      )}
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">Recent Activity</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Last {data.recentActivity.length} events for this tenant
-              </p>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        {KPI_CARDS.map((c, i) => (
+          <div key={i} className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
+            <div className={`w-10 h-10 rounded-full ${c.bg} flex items-center justify-center mb-3`}>
+              <c.icon className={`w-5 h-5 ${c.color}`} />
             </div>
-            <Link
-              href="/admin/audit"
-              className="text-xs font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
-            >
-              View all <ArrowRight className="h-3 w-3" />
-            </Link>
-            <Link
-              href="/admin/staff"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-100"
-            >
-              Staff
-            </Link>
-            <Link
-              href="/admin/appointments"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-100"
-            >
-              Appointments
-            </Link>
-            <Link
-              href="/admin/consents"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-100"
-            >
-              Consents
-            </Link>
-        <Link
-          href="/admin/representatives"
-          className="block rounded-xl border border-gray-200 bg-white hover:border-blue-400 p-5"
-        >
-          <div className="flex items-center gap-3">
-            <UserCog className="w-5 h-5 text-blue-700" />
-            <div>
-              <h3 className="font-semibold text-gray-900">Representatives</h3>
-              <p className="text-sm text-gray-600">Verify, reject or revoke patient-representative grants.</p>
-            </div>
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{c.label}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{c.value}</p>
           </div>
-        </Link>
-          <Link href="/admin/compliance" className="block rounded-xl border border-gray-200 bg-white hover:border-blue-400 p-5">
-            <div className="flex items-center gap-3">
-              <ShieldCheck className="w-5 h-5 text-blue-700" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Compliance Centre</h3>
-                <p className="text-sm text-gray-600">DPA 2019 self-assessment controls.</p>
-              </div>
+        ))}
+      </div>
+
+      {/* Navigation cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        {NAV_CARDS.map((n, i) => (
+          <Link key={i} href={n.href} className="group bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm hover:border-blue-400 dark:hover:border-blue-500 transition-colors">
+            <div className="flex items-center gap-3 mb-2">
+              <n.icon className="w-5 h-5 text-blue-700 dark:text-blue-400" />
+              <h3 className="font-semibold text-gray-900 dark:text-white">{n.title}</h3>
             </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{n.desc}</p>
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-400 group-hover:gap-2 transition-all">
+              Open <ArrowRight className="w-3 h-3" />
+            </span>
           </Link>
+        ))}
+      </div>
 
+      {/* Recent Activity */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Recent Activity</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Last 5 events for this tenant</p>
           </div>
-          {data.recentActivity.length === 0 ? (
-            <div className="px-6 py-10 text-center text-sm text-slate-500">No recent activity yet.</div>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {data.recentActivity.map((evt) => (
-                <li key={evt.id} className="px-6 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-mono text-slate-400">
-                      {new Date(evt.timestamp).toLocaleTimeString()}
-                    </span>
-                    <span className="text-sm font-medium text-slate-900">{evt.action}</span>
-                  </div>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                    {evt.outcome}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <Link href="/admin/audit" className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">View all</Link>
         </div>
-      </main>
-    </div>
+        {loading ? (
+          <div className="px-6 py-8 flex items-center justify-center gap-2 text-gray-500 dark:text-gray-400 text-sm">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading activity...
+          </div>
+        ) : recent.length === 0 ? (
+          <p className="px-6 py-8 text-sm text-gray-500 dark:text-gray-400">No activity yet.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+            {recent.map((r) => (
+              <li key={r.id} className="px-6 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-4 min-w-0">
+                  <span className="text-xs font-mono text-gray-500 dark:text-gray-400 shrink-0">
+                    {new Date(r.createdAt).toLocaleTimeString()}
+                  </span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {r.action}
+                  </span>
+                </div>
+                <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${
+                  r.outcome === 'deny' || r.outcome === 'denied'
+                    ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                    : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                }`}>
+                  {r.outcome}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </AppShell>
   );
 }
