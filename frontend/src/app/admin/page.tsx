@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Shield, Users, Activity, FileText, ArrowRight, LogOut,
   AlertCircle, Loader2,
-} from "lucide-react";
+UserCog } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { createClient } from "@/lib/supabase";
 
@@ -166,6 +166,19 @@ export default function AdminDashboard() {
             >
               Consents
             </Link>
+        <Link
+          href="/admin/representatives"
+          className="block rounded-xl border border-gray-200 bg-white hover:border-blue-400 p-5"
+        >
+          <div className="flex items-center gap-3">
+            <UserCog className="w-5 h-5 text-blue-700" />
+            <div>
+              <h3 className="font-semibold text-gray-900">Representatives</h3>
+              <p className="text-sm text-gray-600">Verify, reject or revoke patient-representative grants.</p>
+            </div>
+          </div>
+        </Link>
+
           </div>
           {data.recentActivity.length === 0 ? (
             <div className="px-6 py-10 text-center text-sm text-slate-500">No recent activity yet.</div>
