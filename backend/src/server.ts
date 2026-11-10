@@ -1,3 +1,7 @@
+import path from 'path';
+import { config } from 'dotenv';
+// Force synchronous load of .env from the backend root before ANY other import runs
+config({ path: path.resolve(process.cwd(), '.env') });
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -21,6 +25,7 @@ import { profileRouter } from './routes/profile';
 import { documentsRouter } from './routes/documents';
 import { meRepresentativesRouter, adminRepresentativesRouter } from './routes/representatives';
 import { notificationsRouter } from './routes/notifications';
+import { emergencyRouter } from './routes/emergency';
 
 const log = pino({ level: env.LOG_LEVEL });
 export const app = express();
@@ -54,6 +59,7 @@ v1.use('/security', securityRouter);
 v1.use('/me/profile', profileRouter);
 v1.use('/me/documents', documentsRouter);
 v1.use('/me/notifications', notificationsRouter);
+v1.use('/emergency', emergencyRouter);
 v1.use('/me/representatives', meRepresentativesRouter);
 v1.use('/admin/representatives', adminRepresentativesRouter);
 app.use('/v1', v1);

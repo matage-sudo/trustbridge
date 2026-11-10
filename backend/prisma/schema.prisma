@@ -290,6 +290,7 @@ model AccessGrant {
 }
 
 model AuditEvent {
+  prevHash       String?
   tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String?  @db.Uuid
@@ -511,5 +512,28 @@ model Notification {
   @@index([tenantId, patientId, createdAt])
   @@index([tenantId, patientId, isRead])
   @@map("notifications")
+  @@schema("public")
+}
+
+model EmergencyAccess {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  patientId       String    @db.Uuid
+  staffMemberId   String    @db.Uuid
+  justification   String
+  purpose         String
+  scope           String[]
+  validFrom       DateTime  @default(now())
+  validUntil      DateTime
+  revokedAt       DateTime?
+  revokedBy       String?   @db.Uuid
+  reviewedAt      DateTime?
+  reviewedBy      String?   @db.Uuid
+  reviewOutcome   String?
+  createdAt       DateTime  @default(now())
+
+  @@index([tenantId, patientId])
+  @@index([tenantId, staffMemberId])
+  @@map("emergency_access")
   @@schema("public")
 }

@@ -1,15 +1,17 @@
+import { config } from 'dotenv';
 import { Request, Response, NextFunction } from 'express';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Lazy-init so this module can be imported by tests and other tools
-// without a valid SUPABASE_SERVICE_ROLE_KEY in the environment.
+config();
+
 let _client: SupabaseClient | null = null;
 function supabase() {
   if (!_client) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!url || !key) {
-      throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set');
+      console.error('[auth] CRITICAL: Missing Supabase env vars.');
+      throw new Error('SUPABASE vars missing');
     }
     _client = createClient(url, key);
   }
@@ -17,8 +19,10 @@ function supabase() {
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  // Dev fallback: if running locally and no token is sent, trust headers.
-  if ((process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') && !req.header('Authorization')) {
+  const env = process.env.NODE_ENV ?? 'development';
+  const devOrTest = env === 'development' || env === 'test';
+
+  if (devOrTest && !req.header('Authorization')) {
     return next();
   }
 
