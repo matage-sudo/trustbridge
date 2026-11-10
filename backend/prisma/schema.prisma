@@ -67,6 +67,7 @@ enum AccessPurpose {
 }
 
 model Tenant {
+  representatives Representative[]
   documents PatientDocument[]
   id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   slug      String       @unique
@@ -152,6 +153,7 @@ model Membership {
 }
 
 model Patient {
+  representatives Representative[]
   documents PatientDocument[]
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId       String   @db.Uuid
@@ -458,5 +460,34 @@ model PatientDocument {
 
   @@index([tenantId, patientId, uploadedAt])
   @@map("patient_documents")
+  @@schema("public")
+}
+
+model Representative {
+  id                         String    @id @default(uuid()) @db.Uuid
+  tenantId                   String    @db.Uuid
+  patientId                  String    @db.Uuid
+  representativeMembershipId String    @db.Uuid
+  authorityType              String
+  scope                      String[]
+  validFrom                  DateTime  @default(now())
+  validUntil                 DateTime?
+  verificationStatus         String    @default("PENDING")
+  initiatedBy                String
+  requestedByMembershipId    String    @db.Uuid
+  approvedByMembershipId     String?   @db.Uuid
+  approvedAt                 DateTime?
+  rejectionReason            String?
+  evidenceNote               String?
+  revokedAt                  DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, patientId])
+  @@index([tenantId, representativeMembershipId, verificationStatus])
+  @@map("representatives")
   @@schema("public")
 }

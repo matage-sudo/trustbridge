@@ -7,6 +7,8 @@ import sharp from 'sharp';
 import { prisma } from '../models/prisma';
 import { currentTenant } from '../middleware/tenantContext';
 import { writeAudit } from '../services/audit';
+import { resolvePatient } from '../services/representation';
+import type { Scope } from '../services/representation';
 
 export const documentsRouter = Router();
 
@@ -41,19 +43,16 @@ function sniff(buf: Buffer): string | null {
   return null;
 }
 
-async function myPatientId(): Promise<string | null> {
-  const { tenantId, userId } = currentTenant();
-  const m = await prisma.membership.findFirst({
-    where: { tenantId, userId, patientId: { not: null } },
-  });
-  return m?.patientId ?? null;
+async function myPatientId(req: Request, scope: Scope): Promise<string | null> {
+  const r = await resolvePatient(req, scope);
+  return r.ok ? r.patientId : null;
 }
 
 // POST /v1/me/documents
 documentsRouter.post('/', singleFile, async (req, res, next) => {
   try {
     const { tenantId } = currentTenant();
-    const patientId = await myPatientId();
+    const patientId = await myPatientId(req, 'UPLOAD_DOCUMENTS');
     if (!patientId) {
       await writeAudit({ action: 'document.upload', outcome: 'deny', reasonCode: 'no_patient_linked' });
       res.status(403).json({ error: 'no_patient_linked' });
@@ -102,10 +101,10 @@ documentsRouter.post('/', singleFile, async (req, res, next) => {
 });
 
 // GET /v1/me/documents
-documentsRouter.get('/', async (_req, res, next) => {
+documentsRouter.get('/', async (req, res, next) => {
   try {
     const { tenantId } = currentTenant();
-    const patientId = await myPatientId();
+    const patientId = await myPatientId(req, 'VIEW_DOCUMENTS');
     if (!patientId) {
       res.status(403).json({ error: 'no_patient_linked' });
       return;
@@ -122,7 +121,7 @@ documentsRouter.get('/', async (_req, res, next) => {
 documentsRouter.get('/:id/view', async (req, res, next) => {
   try {
     const { tenantId, userId } = currentTenant();
-    const patientId = await myPatientId();
+    const patientId = await myPatientId(req, 'VIEW_DOCUMENTS');
     if (!patientId) {
       res.status(403).json({ error: 'no_patient_linked' });
       return;

@@ -1,126 +1,97 @@
 import { Router } from 'express';
 import { prisma } from '../models/prisma';
-import { currentTenant } from '../middleware/tenantContext';
 import { writeAudit } from '../services/audit';
+import { resolvePatient } from '../services/representation';
 
 export const profileRouter = Router();
 
-async function currentMembership() {
-  const { tenantId, userId } = currentTenant();
-  const m = await prisma.membership.findFirst({ where: { tenantId, userId } });
-  if (!m) throw new Error('membership_not_found');
-  return m;
-}
+const mask = (id: string | null) =>
+  id ? `${'*'.repeat(Math.max(0, id.length - 4))}${id.slice(-4)}` : null;
 
-// GET /v1/me/profile — return the caller's linked patient record
-profileRouter.get('/', async (_req, res, next) => {
+// GET /v1/me/profile (own record, or a represented patient via x-acting-for)
+profileRouter.get('/', async (req, res, next) => {
   try {
-    const me = await currentMembership();
-    const { tenantId } = currentTenant();
-
-    if (!me.patientId) {
-      res.status(404).json({ error: 'no_patient_linked' });
+    const r = await resolvePatient(req, 'VIEW_PROFILE');
+    if (!r.ok) {
+      res.status(r.status).json({ error: r.error });
       return;
     }
+    const { currentTenant } = await import('../middleware/tenantContext');
+    const { tenantId } = currentTenant();
 
-    const patient = await prisma.patient.findFirst({
-      where: { id: me.patientId, tenantId },
-    });
+    const patient = await prisma.patient.findFirst({ where: { id: r.patientId, tenantId } });
     if (!patient) {
       res.status(404).json({ error: 'patient_not_found' });
       return;
     }
-
-    // Mask the national ID for the response
-    const masked = patient.nationalId
-      ? `${'*'.repeat(Math.max(0, patient.nationalId.length - 4))}${patient.nationalId.slice(-4)}`
-      : null;
-
     res.json({
       ...patient,
-      nationalId: masked,
+      nationalId: mask(patient.nationalId),
       nationalIdIsMasked: true,
+      actingAs: r.actingAs,
     });
   } catch (err) { next(err); }
 });
 
-// PATCH /v1/me/profile — update permitted fields
+// PATCH /v1/me/profile: only these fields are patient-editable
 profileRouter.patch('/', async (req, res, next) => {
   try {
-    const me = await currentMembership();
-    const { tenantId } = currentTenant();
-
-    if (!me.patientId) {
-      res.status(404).json({ error: 'no_patient_linked' });
+    const r = await resolvePatient(req, 'EDIT_PROFILE');
+    if (!r.ok) {
+      res.status(r.status).json({ error: r.error });
       return;
     }
+    const { currentTenant } = await import('../middleware/tenantContext');
+    const { tenantId } = currentTenant();
 
-    const existing = await prisma.patient.findFirst({
-      where: { id: me.patientId, tenantId },
-    });
+    const existing = await prisma.patient.findFirst({ where: { id: r.patientId, tenantId } });
     if (!existing) {
       res.status(404).json({ error: 'patient_not_found' });
       return;
     }
 
-    // Only these fields are patient-editable. National ID, hospital number,
-    // and identity verification require admin review.
-    const editable = [
-      'phone',
-      'email',
-      'emergencyContactName',
-      'emergencyContactPhone',
-      'gender',
-    ];
-
+    const editable = ['phone', 'email', 'emergencyContactName', 'emergencyContactPhone', 'gender'];
     const updates: Record<string, any> = {};
     for (const key of editable) {
-      if (Object.prototype.hasOwnProperty.call(req.body, key)) {
-        updates[key] = req.body[key];
-      }
+      if (Object.prototype.hasOwnProperty.call(req.body, key)) updates[key] = req.body[key];
     }
-
     if (Object.keys(updates).length === 0) {
       res.status(400).json({ error: 'no_valid_fields_to_update' });
       return;
     }
-
     updates.lastProfileUpdateAt = new Date();
 
-    const updated = await prisma.patient.update({
-      where: { id: me.patientId },
-      data: updates,
-    });
+    const updated = await prisma.patient.update({ where: { id: r.patientId }, data: updates });
 
     await writeAudit({
       action: 'patient.profile.updated',
       resourceType: 'patient',
-      resourceId: me.patientId,
-      payload: { changedFields: Object.keys(updates).filter((k) => k !== 'lastProfileUpdateAt') },
+      resourceId: r.patientId,
+      payload: {
+        changedFields: Object.keys(updates).filter((k) => k !== 'lastProfileUpdateAt'),
+        actingAs: r.actingAs,
+        representationId: r.representationId ?? null,
+      },
     });
 
-    res.json({ ...updated, nationalId: updated.nationalId ? '********' : null, nationalIdIsMasked: true });
+    res.json({ ...updated, nationalId: mask(updated.nationalId), nationalIdIsMasked: true });
   } catch (err) { next(err); }
 });
 
-// POST /v1/me/profile/request-verification — patient asks for national-ID verification
-profileRouter.post('/request-verification', async (_req, res, next) => {
+// POST /v1/me/profile/request-verification
+profileRouter.post('/request-verification', async (req, res, next) => {
   try {
-    const me = await currentMembership();
-    const { tenantId } = currentTenant();
-
-    if (!me.patientId) {
-      res.status(404).json({ error: 'no_patient_linked' });
+    const r = await resolvePatient(req, 'EDIT_PROFILE');
+    if (!r.ok) {
+      res.status(r.status).json({ error: r.error });
       return;
     }
-
     await writeAudit({
       action: 'patient.verification.requested',
       resourceType: 'patient',
-      resourceId: me.patientId,
-      payload: { tenantId },
+      resourceId: r.patientId,
+      payload: { actingAs: r.actingAs },
     });
-
     res.json({ requested: true });
   } catch (err) { next(err); }
 });
