@@ -5,6 +5,7 @@ import pinoHttp from 'pino-http';
 import pino from 'pino';
 import { env } from './config/env';
 import { tenantMiddleware } from './middleware/tenantMiddleware';
+import { requireAuth } from './middleware/auth';
 import { sessionTracker } from './middleware/sessionTracker';
 import { tenantRouter } from './routes/tenant';
 import { auditRouter } from './routes/audit';
@@ -37,7 +38,8 @@ app.get('/v1/health', (_req, res) => {
 });
 
 const v1 = express.Router();
-v1.use(tenantMiddleware);
+v1.use(requireAuth);
+v1.use(tenantMiddleware);;
 v1.use(sessionTracker);
 v1.use('/tenants', tenantRouter);
 v1.use('/audit-events', auditRouter);
