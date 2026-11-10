@@ -39,6 +39,29 @@ export function clearApiCache() {
   cachedContext = null;
 }
 
+// ---------------------------------------------------------------------------
+// Acting-for support.
+// A representative can open a patient's records by setting `actingFor` in
+// localStorage. The value is the *patient id* (not the grant id). Every
+// request automatically carries `x-acting-for` when it is set. The server
+// still enforces the scope check; this header alone grants nothing.
+// ---------------------------------------------------------------------------
+const ACTING_FOR_KEY = "actingFor";
+
+export function getActingFor(): string | null {
+  if (typeof window === "undefined") return null;
+  try { return localStorage.getItem(ACTING_FOR_KEY); } catch { return null; }
+}
+
+export function setActingFor(patientId: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (patientId) localStorage.setItem(ACTING_FOR_KEY, patientId);
+    else localStorage.removeItem(ACTING_FOR_KEY);
+  } catch { /* ignore quota / private mode */ }
+}
+
+// ---------------------------------------------------------------------------
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const ctx = await getContext();
 

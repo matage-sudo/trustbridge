@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, User, Loader2, CheckCircle, ShieldCheck, AlertTriangle, Save } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import ActingForBanner from "@/components/ActingForBanner";
 
 type Profile = {
   id: string;
@@ -142,6 +143,7 @@ export default function PatientProfilePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <ActingForBanner />
       <header className="bg-blue-900 text-white">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
           <Link href="/patient" className="hover:text-blue-200" aria-label="Back to portal">

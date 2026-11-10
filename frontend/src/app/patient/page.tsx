@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Shield, LogOut, FileText, Activity, CheckCircle, XCircle, ShieldCheck, Plus, User, FolderOpen } from "lucide-react";
+import { Shield, LogOut, FileText, Activity, CheckCircle, XCircle, ShieldCheck, Plus, User, FolderOpen, UserCog } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { createClient } from "@/lib/supabase";
+import ActingForBanner from "@/components/ActingForBanner";
 
 type Patient = { id: string; firstName: string; lastName: string; hospitalNumber: string; dateOfBirth: string };
 type Consent = { id: string; purpose: string; noticeVersion: string; status: string; grantedAt: string };
@@ -94,6 +95,7 @@ export default function PatientPortal() {
 
   return (
     <div className="min-h-screen bg-slate-100">
+      <ActingForBanner />
       <header className="bg-blue-600 text-white">
         <div className="max-w-4xl mx-auto px-6 py-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -109,6 +111,9 @@ export default function PatientPortal() {
           </Link>
           <Link href="/patient/documents" className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
             <FolderOpen className="w-4 h-4" /> Documents
+          </Link>
+          <Link href="/patient/representatives" className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
+            <UserCog className="w-4 h-4" /> Representatives
           </Link>
           <Link href="/patient/security" className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
               <ShieldCheck className="h-4 w-4" /> Security
