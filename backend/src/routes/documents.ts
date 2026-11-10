@@ -97,6 +97,16 @@ documentsRouter.post('/', singleFile, async (req, res, next) => {
       resourceId: doc.id,
       payload: { mimeType: real, sizeBytes: req.file.size },
     });
+
+    await notifyPatient({
+      tenantId,
+      patientId,
+      type: 'document.uploaded',
+      title: 'New document uploaded',
+      message: `A new document (${doc.filename}) was added to your record.`,
+      resourceType: 'document',
+      resourceId: doc.id,
+    });
     res.status(201).json(doc);
   } catch (err) { next(err); }
 });
