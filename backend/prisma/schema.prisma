@@ -67,6 +67,7 @@ enum AccessPurpose {
 }
 
 model Tenant {
+  documents PatientDocument[]
   id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   slug      String       @unique
   name      String
@@ -151,12 +152,22 @@ model Membership {
 }
 
 model Patient {
+  documents PatientDocument[]
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId       String   @db.Uuid
   firstName      String
   lastName       String
   dateOfBirth    DateTime @db.Date
   hospitalNumber String   @unique
+  phone                 String?
+  email                 String?
+  gender                String?
+  nationalId            String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  profilePhotoUrl       String?
+  verifiedAt            DateTime?
+  lastProfileUpdateAt   DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -276,6 +287,7 @@ model AccessGrant {
 }
 
 model AuditEvent {
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String?  @db.Uuid
   actorUserId   String?  @db.Uuid
@@ -425,5 +437,26 @@ model SecurityAlert {
   @@index([tenantId, userId, acknowledged])
   @@index([createdAt])
   @@map("tb_security_alerts")
+  @@schema("public")
+}
+
+model PatientDocument {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @db.Uuid
+  patientId        String    @db.Uuid
+  filename         String
+  storageKey       String    @unique
+  mimeType         String
+  sizeBytes        Int
+  classification   String    @default("GENERAL")
+  watermarkEnabled Boolean   @default(true)
+  uploadedAt       DateTime  @default(now())
+  deletedAt        DateTime?
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, patientId, uploadedAt])
+  @@map("patient_documents")
   @@schema("public")
 }

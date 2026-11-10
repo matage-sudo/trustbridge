@@ -16,6 +16,8 @@ import { consentsRouter } from './routes/consents';
 import { accessRequestsRouter } from './routes/accessRequests';
 import { rightsRouter } from './routes/rightsRequests';
 import { securityRouter } from './routes/security';
+import { profileRouter } from './routes/profile';
+import { documentsRouter } from './routes/documents';
 
 const log = pino({ level: env.LOG_LEVEL });
 export const app = express();
@@ -45,6 +47,8 @@ v1.use('/consents', consentsRouter);
 v1.use('/access-requests', accessRequestsRouter);
 v1.use('/rights-requests', rightsRouter);
 v1.use('/security', securityRouter);
+v1.use('/me/profile', profileRouter);
+v1.use('/me/documents', documentsRouter);
 app.use('/v1', v1);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
