@@ -19,6 +19,7 @@ import { securityRouter } from './routes/security';
 import { profileRouter } from './routes/profile';
 import { documentsRouter } from './routes/documents';
 import { meRepresentativesRouter, adminRepresentativesRouter } from './routes/representatives';
+import { notificationsRouter } from './routes/notifications';
 
 const log = pino({ level: env.LOG_LEVEL });
 export const app = express();
@@ -50,6 +51,7 @@ v1.use('/rights-requests', rightsRouter);
 v1.use('/security', securityRouter);
 v1.use('/me/profile', profileRouter);
 v1.use('/me/documents', documentsRouter);
+v1.use('/me/notifications', notificationsRouter);
 v1.use('/me/representatives', meRepresentativesRouter);
 v1.use('/admin/representatives', adminRepresentativesRouter);
 app.use('/v1', v1);

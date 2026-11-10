@@ -3,6 +3,7 @@ import { prisma } from '../models/prisma';
 import { currentTenant } from '../middleware/tenantContext';
 import { writeAudit } from '../services/audit';
 import { SCOPES, AUTHORITY_TYPES, ADMIN_ROLES, UUID_RE, callerMembership, activeWindow } from '../services/representation';
+import { notifyPatient } from '../services/notify';
 
 export const meRepresentativesRouter = Router();
 export const adminRepresentativesRouter = Router();
@@ -300,6 +301,7 @@ async function pending(req: Request, res: Response) {
 adminRepresentativesRouter.post('/:id/verify', async (req, res, next) => {
   try {
     const admin = res.locals.me;
+    const { tenantId } = currentTenant();
     const rep = await pending(req, res);
     if (!rep) return;
     if (rep.verificationStatus !== 'PENDING') { res.status(409).json({ error: 'not_pending' }); return; }
@@ -323,6 +325,7 @@ adminRepresentativesRouter.post('/:id/verify', async (req, res, next) => {
       resourceId: rep.id,
       payload: { patientId: rep.patientId, authorityType: rep.authorityType, scope: rep.scope },
     });
+    await notifyPatient({ tenantId, patientId: rep.patientId, type: 'representative.verified', title: 'Representative verified', message: 'A representative you added has been verified by hospital staff.', resourceType: 'representative', resourceId: rep.id });
     res.json(updated);
   } catch (err) { next(err); }
 });

@@ -8,6 +8,7 @@ import { prisma } from '../models/prisma';
 import { currentTenant } from '../middleware/tenantContext';
 import { writeAudit } from '../services/audit';
 import { resolvePatient } from '../services/representation';
+import { notifyPatient } from '../services/notify';
 import type { Scope } from '../services/representation';
 
 export const documentsRouter = Router();

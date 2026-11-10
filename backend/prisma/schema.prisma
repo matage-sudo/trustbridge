@@ -153,6 +153,7 @@ model Membership {
 }
 
 model Patient {
+  notifications Notification[]
   representatives Representative[]
   documents PatientDocument[]
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -489,5 +490,26 @@ model Representative {
   @@index([tenantId, patientId])
   @@index([tenantId, representativeMembershipId, verificationStatus])
   @@map("representatives")
+  @@schema("public")
+}
+
+model Notification {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @db.Uuid
+  patientId      String    @db.Uuid
+  type           String    // e.g. 'access.granted', 'document.uploaded', 'representative.verified'
+  title          String
+  message        String
+  resourceType   String?   // e.g. 'document', 'representative', 'audit_event'
+  resourceId     String?
+  isRead         Boolean   @default(false)
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, patientId, createdAt])
+  @@index([tenantId, patientId, isRead])
+  @@map("notifications")
   @@schema("public")
 }
