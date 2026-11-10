@@ -537,3 +537,29 @@ model EmergencyAccess {
   @@map("emergency_access")
   @@schema("public")
 }
+
+model ComplianceAssessment {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  framework   String   // e.g., 'DPA_2019'
+  controlId   String   // e.g., 'SEC-1.2'
+  status      String   // 'COMPLIANT', 'NON_COMPLIANT', 'NOT_APPLICABLE'
+  evidence    String?
+  updatedAt   DateTime @updatedAt
+  updatedBy   String   @db.Uuid
+
+  @@map("compliance_assessments")
+  @@schema("public")
+}
+
+model StaffAnnouncement {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+  createdBy String   @db.Uuid
+
+  @@map("staff_announcements")
+  @@schema("public")
+}
