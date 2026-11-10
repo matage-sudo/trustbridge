@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Shield, LogOut, FileText, Activity, CheckCircle, XCircle, ShieldCheck, Plus, User, FolderOpen, UserCog } from "lucide-react";
+import { Shield, User, FolderOpen, UserCog, ShieldCheck, LogOut, Activity, Users, ClipboardList, Plus, X, CheckCircle, XCircle, FileText } from "lucide-react";
+
+import NotificationBell from "@/components/NotificationBell";
 import { apiFetch } from "@/lib/api";
 import { createClient } from "@/lib/supabase";
 import ActingForBanner from "@/components/ActingForBanner";
@@ -115,6 +117,7 @@ export default function PatientPortal() {
           <Link href="/patient/representatives" className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
             <UserCog className="w-4 h-4" /> Representatives
           </Link>
+          <NotificationBell />
           <Link href="/patient/security" className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
               <ShieldCheck className="h-4 w-4" /> Security
             </Link>
