@@ -3,7 +3,7 @@ import { prisma } from '../models/prisma';
 export type PolicyDecision =
   | { decision: 'ALLOW'; reason: string; grantId: string }
   | { decision: 'DENY'; reason: string }
-  | { decision: 'NEEDS_APPROVAL'; reason: string; requestId: string };
+  | { decision: 'NEEDS_APPROVAL'; reason: string; requestId?: string };
 
 /**
  * Evaluates whether a staff member may access a specific patient record.

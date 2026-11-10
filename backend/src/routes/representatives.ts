@@ -182,7 +182,7 @@ meRepresentativesRouter.post('/:id/revoke', async (req, res, next) => {
     const { tenantId } = currentTenant();
     const me = await callerMembership();
     if (!me?.patientId) { res.status(403).json({ error: 'no_patient_linked' }); return; }
-    if (!UUID_RE.test(req.params.id)) { res.status(400).json({ error: 'invalid_id' }); return; }
+    if (!UUID_RE.test(String(req.params.id ?? ''))) { res.status(400).json({ error: 'invalid_id' }); return; }
 
     const rep = await prisma.representative.findFirst({
       where: { id: req.params.id, tenantId, patientId: me.patientId },
@@ -290,7 +290,7 @@ adminRepresentativesRouter.post('/', async (req, res, next) => {
 
 async function pending(req: Request, res: Response) {
   const { tenantId } = currentTenant();
-  if (!UUID_RE.test(req.params.id)) { res.status(400).json({ error: 'invalid_id' }); return null; }
+  if (!UUID_RE.test(String(req.params.id ?? ''))) { res.status(400).json({ error: 'invalid_id' }); return null; }
   const rep = await prisma.representative.findFirst({ where: { id: req.params.id, tenantId } });
   if (!rep) { res.status(404).json({ error: 'not_found' }); return null; }
   return rep;
