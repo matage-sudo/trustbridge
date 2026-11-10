@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Shield, LogOut, FileText, Activity, CheckCircle, XCircle, ShieldCheck, Plus } from "lucide-react";
+import { Shield, LogOut, FileText, Activity, CheckCircle, XCircle, ShieldCheck, Plus, User, FolderOpen } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { createClient } from "@/lib/supabase";
 
@@ -104,7 +104,13 @@ export default function PatientPortal() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/patient/security" className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
+            <Link href="/patient/profile" className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
+            <User className="w-4 h-4" /> Profile
+          </Link>
+          <Link href="/patient/documents" className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
+            <FolderOpen className="w-4 h-4" /> Documents
+          </Link>
+          <Link href="/patient/security" className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">
               <ShieldCheck className="h-4 w-4" /> Security
             </Link>
             <button onClick={handleLogout} className="flex items-center gap-2 text-sm font-medium hover:text-blue-200">

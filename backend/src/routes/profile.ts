@@ -99,7 +99,7 @@ profileRouter.patch('/', async (req, res, next) => {
       payload: { changedFields: Object.keys(updates).filter((k) => k !== 'lastProfileUpdateAt') },
     });
 
-    res.json(updated);
+    res.json({ ...updated, nationalId: updated.nationalId ? '********' : null, nationalIdIsMasked: true });
   } catch (err) { next(err); }
 });
 

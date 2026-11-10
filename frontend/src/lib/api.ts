@@ -60,3 +60,36 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
 
   return res.json();
 }
+
+// --- Sprint A helpers: multipart upload and binary download ---
+async function rawFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const ctx = await getContext();
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      "x-tenant-id": ctx.tenantId,
+      "x-user-id": ctx.userId,
+      "x-role": ctx.role,
+      ...options.headers,
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const err: any = new Error(body.error || `API Error: ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res;
+}
+
+export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
+  // No Content-Type here: the browser sets the multipart boundary itself
+  const res = await rawFetch(path, { method: "POST", body: form });
+  return res.json();
+}
+
+export async function apiBlob(path: string): Promise<Blob> {
+  const res = await rawFetch(path);
+  return res.blob();
+}
