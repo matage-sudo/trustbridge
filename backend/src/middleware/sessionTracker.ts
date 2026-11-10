@@ -3,15 +3,6 @@ import { createHash } from 'node:crypto';
 import { prisma } from '../models/prisma';
 import { currentTenant } from './tenantContext';
 
-/**
- * Runs after tenantMiddleware. On every authenticated request:
- * 1. Computes device fingerprint from user-agent + IP (hash)
- * 2. Upserts the device (creating it if new + firing NEW_DEVICE alert)
- * 3. Upserts a session row for this user+device
- * 4. Updates lastSeenAt
- *
- * Non-blocking: errors are logged but do not fail the request.
- */
 export async function sessionTracker(req: Request, res: Response, next: NextFunction) {
   // Kick off the work in the background; don't await to keep latency low.
   setImmediate(() => {
@@ -24,9 +15,20 @@ export async function sessionTracker(req: Request, res: Response, next: NextFunc
 }
 
 async function trackSession(req: Request) {
-  const { tenantId, userId } = currentTenant();
+  let tenantContext: ReturnType<typeof currentTenant> | undefined;
+  try {
+    tenantContext = currentTenant();
+  } catch {
+    return;
+  }
+
+  if (!tenantContext) {
+    return;
+  }
+
+  const { tenantId, userId } = tenantContext;
   const ua = req.header('user-agent') ?? 'unknown';
-  const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
+  const ip = resolveClientIp(req);
   const fingerprint = createHash('sha256')
     .update(`${tenantId}:${userId}:${ua}:${ip}`)
     .digest('hex')
@@ -34,42 +36,43 @@ async function trackSession(req: Request) {
   const label = labelFromUA(ua);
   const platform = platformFromUA(ua);
 
-  // Upsert device
-  let device = await prisma.patientDevice.findUnique({ where: { fingerprint } });
-  if (!device) {
-    device = await prisma.patientDevice.create({
-      data: { tenantId, userId, fingerprint, label, userAgent: ua, platform, lastSeenAt: new Date() },
-    });
-    // Fire NEW_DEVICE alert
-    await prisma.securityAlert.create({
-      data: {
-        tenantId,
-        userId,
-        kind: 'NEW_DEVICE',
-        severity: 'MEDIUM',
-        title: 'New device signed in',
-        description: `A new device (${label}) signed in to your account. If this wasn't you, sign out all sessions immediately.`,
-        metadata: { deviceId: device.id, userAgent: ua, ip },
-      },
-    });
-  } else {
-    await prisma.patientDevice.update({
-      where: { id: device.id },
-      data: { lastSeenAt: new Date() },
-    });
-  }
+  await prisma.$transaction(async (tx) => {
+    let device = await tx.patientDevice.findUnique({ where: { fingerprint } });
+    if (!device) {
+      device = await tx.patientDevice.create({
+        data: { tenantId, userId, fingerprint, label, userAgent: ua, platform, lastSeenAt: new Date() },
+      });
+      await tx.securityAlert.create({
+        data: {
+          tenantId,
+          userId,
+          kind: 'NEW_DEVICE',
+          severity: 'MEDIUM',
+          title: 'New device signed in',
+          description: `A new device (${label}) signed in to your account. If this wasn't you, sign out all sessions immediately.`,
+          metadata: { deviceId: device.id, userAgent: ua, ip },
+        },
+      });
+    } else {
+      await tx.patientDevice.update({
+        where: { id: device.id },
+        data: { lastSeenAt: new Date() },
+      });
+    }
 
-  // Upsert session (one active session per user+device)
-  const existingSession = await prisma.patientSession.findFirst({
-    where: { tenantId, userId, deviceId: device.id, status: 'ACTIVE' },
-  });
-  if (existingSession) {
-    await prisma.patientSession.update({
-      where: { id: existingSession.id },
-      data: { lastSeenAt: new Date() },
+    const existingSession = await tx.patientSession.findFirst({
+      where: { tenantId, userId, deviceId: device.id, status: 'ACTIVE' },
     });
-  } else {
-    await prisma.patientSession.create({
+
+    if (existingSession) {
+      await tx.patientSession.update({
+        where: { id: existingSession.id },
+        data: { lastSeenAt: new Date(), userAgent: ua, ipAddress: ip },
+      });
+      return;
+    }
+
+    await tx.patientSession.create({
       data: {
         tenantId,
         userId,
@@ -79,7 +82,17 @@ async function trackSession(req: Request) {
         location: null,
       },
     });
+  });
+}
+
+function resolveClientIp(req: Request): string {
+  const forwardedFor = req.header('x-forwarded-for');
+  if (forwardedFor) {
+    const [ip] = forwardedFor.split(',').map((value) => value.trim()).filter(Boolean);
+    if (ip) return ip;
   }
+
+  return req.ip ?? req.socket.remoteAddress ?? 'unknown';
 }
 
 function labelFromUA(ua: string): string {
