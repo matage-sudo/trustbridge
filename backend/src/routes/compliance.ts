@@ -10,7 +10,10 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// DPA 2019 control catalogue — seeded once, updated per tenant
+complianceRouter.get('/', (_req, res) => {
+  res.json({ status: 'ok', message: 'Compliance API is running. Use /controls for data.' });
+});
+
 const DPA_CONTROLS = [
   { id: 'LAW-1', section: 'Lawful Processing', title: 'Lawful basis identified and documented for each processing activity', },
   { id: 'LAW-2', section: 'Lawful Processing', title: 'Consent records maintained where consent is the basis', },
@@ -88,28 +91,7 @@ complianceRouter.put('/controls/:id', async (req, res, next) => {
              "updatedBy" = EXCLUDED."updatedBy",
              "updatedAt" = now()`,
       [tenantId, id, status, evidence, userId]
-    ).catch(async (e: any) => {
-      // If unique constraint doesn't exist yet, do a manual upsert
-      const exists = await pool.query(
-        `SELECT 1 FROM public.compliance_assessments WHERE "tenantId" = $1 AND "controlId" = $2`,
-        [tenantId, id]
-      );
-      if (exists.rowCount && exists.rowCount > 0) {
-        await pool.query(
-          `UPDATE public.compliance_assessments
-             SET "status" = $1, "evidence" = $2, "updatedBy" = $3, "updatedAt" = now()
-           WHERE "tenantId" = $4 AND "controlId" = $5`,
-          [status, evidence, userId, tenantId, id]
-        );
-      } else {
-        await pool.query(
-          `INSERT INTO public.compliance_assessments
-             ("tenantId","framework","controlId","status","evidence","updatedBy")
-           VALUES ($1,'DPA_2019',$2,$3,$4,$5)`,
-          [tenantId, id, status, evidence, userId]
-        );
-      }
-    });
+    );
 
     res.json({ ok: true, id, status, evidence });
   } catch (err) { next(err); }

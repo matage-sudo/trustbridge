@@ -5,6 +5,7 @@ config({ path: path.resolve(process.cwd(), '.env') });
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import pinoHttp from 'pino-http';
 import pino from 'pino';
 import { env } from './config/env';
@@ -29,7 +30,12 @@ import { notificationsRouter } from './routes/notifications';
 import { emergencyRouter } from './routes/emergency';
 import { staffDashboardRouter } from './routes/staffDashboard';
 import { complianceRouter } from './routes/compliance';
+import { adminUsersRouter } from './routes/adminUsers';
+import { aiAssistantRouter } from './routes/aiAssistant';
 import { aiRiskRouter } from './routes/aiRisk';
+import { staffAppointmentsRouter } from './routes/staffAppointments';
+import { pool } from './db';
+import { currentTenant } from './middleware/tenantContext';
 import { prisma } from './models/prisma';
 
 const log = pino({ level: env.LOG_LEVEL });
@@ -86,7 +92,7 @@ v1.use('/tenants', tenantRouter);
 v1.use('/audit-events', auditRouter);
 v1.use('/dashboard', dashboardRouter);
 v1.use('/patients', patientsRouter);
-v1.use('/staff', requireRole('HOSPITAL_ADMIN', 'STAFF'), staffRouter);
+v1.use('/staff', requireRole('HOSPITAL_ADMIN', 'STAFF', 'SUPER_ADMIN'), staffRouter);
 v1.use('/appointments', appointmentsRouter);
 v1.use('/consents', consentsRouter);
 v1.use('/access-requests', accessRequestsRouter);
@@ -96,12 +102,40 @@ v1.use('/me/profile', profileRouter);
 v1.use('/me/documents', documentsRouter);
 v1.use('/me/notifications', notificationsRouter);
 v1.use('/emergency', emergencyRouter);
-v1.use('/staff/dashboard', requireRole('HOSPITAL_ADMIN', 'STAFF'), staffDashboardRouter);
+v1.use('/staff/dashboard', requireRole('HOSPITAL_ADMIN', 'STAFF', 'SUPER_ADMIN'), staffDashboardRouter);
 v1.use('/ai-risk', aiRiskRouter);
+v1.use('/staff/appointments', staffAppointmentsRouter);
+
+v1.use('/patients/search', requireAuth, tenantMiddleware, async (req, res) => {
+  try {
+    const { tenantId } = currentTenant();
+    const q = req.query.q as string || '';
+    const result = await pool.query(
+      `SELECT id, "firstName", "lastName", "hospitalNumber" FROM patients 
+       WHERE "tenantId" = $1 AND ("firstName" ILIKE $2 OR "lastName" ILIKE $2 OR "hospitalNumber" ILIKE $2) LIMIT 10`,
+      [tenantId, `%${q}%`]
+    );
+    res.json({ items: result.rows });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 v1.use('/staff/ai-risk', aiRiskRouter);
 v1.use('/compliance', complianceRouter);
+v1.use('/admin/users', requireRole('HOSPITAL_ADMIN', 'SUPER_ADMIN'), adminUsersRouter);
+v1.use('/ai', aiAssistantRouter);
 v1.use('/me/representatives', meRepresentativesRouter);
-v1.use('/admin/representatives', requireRole('HOSPITAL_ADMIN', 'PRIVACY_OFFICER'), adminRepresentativesRouter);
+v1.use('/admin/representatives', requireRole('HOSPITAL_ADMIN', 'PRIVACY_OFFICER', 'SUPER_ADMIN'), adminRepresentativesRouter);
+
+// Security Hardening: Rate Limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' }
+});
+app.use('/v1', apiLimiter);
+
 app.use('/v1', v1);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

@@ -1,0 +1,453 @@
+
+=======================================================
+ 1. ALL MODELS IN SCHEMA.PRISMA
+=======================================================
+model User {
+model Tenant {
+model UserIdentity {
+model Department {
+model Membership {
+model Patient {
+model Appointment {
+model Consent {
+model AccessRequest {
+model AccessGrant {
+model AuditEvent {
+
+=======================================================
+ 2. MEMBERSHIP MODEL DEFINITION
+=======================================================
+
+> prisma\schema.prisma:127:model Membership {
+  prisma\schema.prisma:128:  id              
+ String         @id 
+@default(dbgenerated("gen_random_uuid()")) 
+@db.Uuid
+  prisma\schema.prisma:129:  tenantId        
+ String         @db.Uuid
+  prisma\schema.prisma:130:  userId          
+ String         @db.Uuid
+  prisma\schema.prisma:131:  role            
+ MembershipRole
+  prisma\schema.prisma:132:  active          
+ Boolean        @default(true)
+  prisma\schema.prisma:133:  departmentId    
+ String?        @db.Uuid
+  prisma\schema.prisma:134:  
+employmentStatus String         
+@default("ACTIVE")
+  prisma\schema.prisma:135:  createdAt       
+ DateTime       @default(now())
+  prisma\schema.prisma:136:  updatedAt       
+ DateTime       @updatedAt
+  prisma\schema.prisma:137:
+  prisma\schema.prisma:138:  tenant     
+Tenant       @relation(fields: [tenantId], 
+references: [id], onDelete: Cascade)
+  prisma\schema.prisma:139:  user       
+UserIdentity @relation(fields: [userId], 
+references: [id], onDelete: Cascade)
+  prisma\schema.prisma:140:  department 
+Department?  @relation(fields: 
+[departmentId], references: [id], onDelete: 
+SetNull)
+  prisma\schema.prisma:141:
+  prisma\schema.prisma:142:  appointments    
+          Appointment[]
+  prisma\schema.prisma:143:  
+accessRequestsAsRequester AccessRequest[] 
+@relation("AccessRequestsAsRequester")
+  prisma\schema.prisma:144:  
+accessGrantsAsGrantee     AccessGrant[]   
+@relation("AccessGrantsAsGrantee")
+  prisma\schema.prisma:145:
+  prisma\schema.prisma:146:  
+@@unique([tenantId, userId])
+  prisma\schema.prisma:147:  
+@@index([tenantId])
+  prisma\schema.prisma:148:  
+@@index([departmentId])
+  prisma\schema.prisma:149:  
+@@map("memberships")
+  prisma\schema.prisma:150:  
+@@schema("public")
+  prisma\schema.prisma:151:}
+  prisma\schema.prisma:152:
+
+
+
+
+=======================================================
+ 3. FULL SCHEMA.PRISMA
+=======================================================
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public", "auth"]
+}
+
+// Ignore the Supabase Auth schema's models so Prisma won't try to manage them
+model User {
+  id String @id @db.Uuid
+  @@schema("auth")
+  @@ignore
+}
+
+// ============================================================
+// Enums
+// ============================================================
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  @@schema("public")
+}
+
+enum MembershipRole {
+  PATIENT
+  STAFF
+  HOSPITAL_ADMIN
+  PRIVACY_OFFICER
+  SECURITY_INVESTIGATOR
+  SUPER_ADMIN
+  @@schema("public")
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  @@schema("public")
+}
+
+enum ConsentStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+  @@schema("public")
+}
+
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  @@schema("public")
+}
+
+enum AccessPurpose {
+  TREATMENT
+  DIAGNOSIS
+  LAB_REVIEW
+  PHARMACY_DISPENSE
+  BILLING
+  RESEARCH
+  TEACHING
+  AUDIT_REVIEW
+  @@schema("public")
+}
+
+// ============================================================
+// Core tenant models
+// ============================================================
+
+model Tenant {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug      String       @unique
+  name      String
+  status    TenantStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  memberships    Membership[]
+  patients       Patient[]
+  departments    Department[]
+  appointments   Appointment[]
+  consents       Consent[]
+  accessRequests AccessRequest[]
+  accessGrants   AccessGrant[]
+
+  @@map("tenants")
+  @@schema("public")
+}
+
+model UserIdentity {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email       String   @unique
+  displayName String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memberships Membership[]
+
+  @@map("user_identities")
+  @@schema("public")
+}
+
+model Department {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @db.Uuid
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  memberships Membership[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("departments")
+  @@schema("public")
+}
+
+model Membership {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String         @db.Uuid
+  userId           String         @db.Uuid
+  role             MembershipRole
+  active           Boolean        @default(true)
+  departmentId     String?        @db.Uuid
+  employmentStatus String         @default("ACTIVE")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user       UserIdentity @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  appointments              Appointment[]
+  accessRequestsAsRequester AccessRequest[] @relation("AccessRequestsAsRequester")
+  accessGrantsAsGrantee     AccessGrant[]   @relation("AccessGrantsAsGrantee")
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+  @@index([departmentId])
+  @@map("memberships")
+  @@schema("public")
+}
+
+// ============================================================
+// Clinical / operational models
+// ============================================================
+
+model Patient {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @db.Uuid
+  firstName      String
+  lastName       String
+  dateOfBirth    DateTime @db.Date
+  hospitalNumber String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointments   Appointment[]
+  consents       Consent[]
+  accessRequests AccessRequest[]
+  accessGrants   AccessGrant[]
+
+  @@index([tenantId])
+  @@map("patients")
+  @@schema("public")
+}
+
+model Appointment {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String            @db.Uuid
+  patientId    String            @db.Uuid
+  staffId      String            @db.Uuid
+  scheduledAt  DateTime
+  durationMins Int               @default(30)
+  reason       String?
+  status       AppointmentStatus @default(SCHEDULED)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  tenant  Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  staff   Membership @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, scheduledAt])
+  @@index([patientId])
+  @@index([staffId])
+  @@map("tb_appointments")
+  @@schema("public")
+}
+
+model Consent {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String        @db.Uuid
+  patientId        String        @db.Uuid
+  purpose          String
+  noticeVersion    String
+  language         String        @default("en")
+  grantedAt        DateTime      @default(now())
+  effectiveFrom    DateTime      @default(now())
+  expiresAt        DateTime?
+  status           ConsentStatus @default(ACTIVE)
+  revokedAt        DateTime?
+  revocationReason String?
+  capturedBy       String?       @db.Uuid
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([patientId])
+  @@map("tb_consents")
+  @@schema("public")
+}
+
+// ============================================================
+// Access Control (Policy Engine)
+// ============================================================
+
+model AccessRequest {
+  id                     String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String              @db.Uuid
+  requesterId            String              @db.Uuid
+  patientId              String              @db.Uuid
+  purpose                AccessPurpose
+  reason                 String
+  requestedDurationHours Int                 @default(4)
+  status                 AccessRequestStatus @default(PENDING)
+  decisionReason         String?
+  decidedBy              String?             @db.Uuid
+  decidedAt              DateTime?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  requester Membership @relation("AccessRequestsAsRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  patient   Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  grant     AccessGrant?
+
+  @@index([tenantId, status])
+  @@index([requesterId])
+  @@index([patientId])
+  @@map("tb_access_requests")
+  @@schema("public")
+}
+
+model AccessGrant {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String        @db.Uuid
+  requestId        String        @unique @db.Uuid
+  granteeId        String        @db.Uuid
+  patientId        String        @db.Uuid
+  purpose          AccessPurpose
+  grantedAt        DateTime      @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  revocationReason String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  request AccessRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  patient Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  grantee Membership    @relation("AccessGrantsAsGrantee", fields: [granteeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([granteeId])
+  @@index([patientId])
+  @@index([expiresAt])
+  @@map("tb_access_grants")
+  @@schema("public")
+}
+
+// ============================================================
+// Audit
+// ============================================================
+
+model AuditEvent {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String?  @db.Uuid
+  actorUserId   String?  @db.Uuid
+  action        String
+  resourceType  String?
+  resourceId    String?
+  outcome       String
+  reasonCode    String?
+  correlationId String?
+  payload       Json?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([correlationId])
+  @@map("audit_events")
+  @@schema("public")
+}
+
+=======================================================
+ 4. APPLIED MIGRATIONS
+=======================================================
+No migrations directory found.
+
+=======================================================
+ 5. STALE .JS FILES IN SRC/
+=======================================================
+No .js files found in src/ (good).
+
+=======================================================
+ 6. .ENV VARIABLE NAMES
+=======================================================
+PORT = [SHORT - length 4]
+NODE_ENV = [HIDDEN - length 11]
+LOG_LEVEL = [SHORT - length 4]
+DATABASE_URL = [HIDDEN - length 139]
+DIRECT_URL = [HIDDEN - length 104]
+SUPABASE_URL = [HIDDEN - length 40]
+SUPABASE_ANON_KEY = [HIDDEN - length 46]
+SUPABASE_SERVICE_ROLE_KEY = [HIDDEN - length 41]
+NODE_OPTIONS = [HIDDEN - length 28]
+ALLOW_DEV_HEADERS = [SHORT - length 4]
+ALLOW_AUTO_PROVISION = [SHORT - length 4]
+ALLOW_AUTO_PROVISION = [SHORT - length 4]
+ALLOW_DEV_HEADERS = [SHORT - length 4]
+ALLOW_AUTO_PROVISION = [SHORT - length 4]
+ALLOW_DEV_HEADERS = [SHORT - length 4]
+
+=======================================================
+ 7. SRC/SERVICES/NOTIFY.TS
+=======================================================
+import { createNotification, NotificationType } from './notification-store';
+
+// MOCK PROVIDERS FOR DEMO
+async function sendEmail(to: string, subject: string, body: string) {
+  console.log(`[EMAIL PROVIDER] To: ${to} | Subject: ${subject}`);
+}
+
+async function sendSms(to: string, body: string) {
+  console.log(`[SMS PROVIDER] To: ${to} | Body: ${body.slice(0, 50)}...`);
+}
+
+export type { NotificationType };
+
+export async function notifyPatient(o: {
+  tenantId: string;
+  patientId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  resourceType?: string;
+  resourceId?: string;
+}) {
+  // 1. Save to DB (in-app notification)
+  const notif = await createNotification(o);
+  
+  // 2. Fire external channels (mocked for demo)
+  // In production, fetch patient email/phone and use Twilio/SendGrid
+  sendEmail("patient@example.com", o.title, o.message).catch(() => {});
+  sendSms("+254700000000", o.message).catch(() => {});
+  
+  return notif;
+}

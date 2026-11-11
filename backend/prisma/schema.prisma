@@ -83,13 +83,23 @@ model Tenant {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  memberships    Membership[]
-  patients       Patient[]
-  departments    Department[]
-  appointments   Appointment[]
-  consents       Consent[]
-  accessRequests AccessRequest[]
-  accessGrants   AccessGrant[]
+  memberships        Membership[]
+  patients           Patient[]
+  departments        Department[]
+  appointments       Appointment[]
+  consents           Consent[]
+  accessRequests     AccessRequest[]
+  accessGrants       AccessGrant[]
+  documents          PatientDocument[]
+  representatives    Representative[]
+  emergencyAccess    EmergencyAccess[]
+  notifications      Notification[]
+  devices            PatientDevice[]
+  sessions           PatientSession[]
+  securityAlerts     SecurityAlert[]
+  rightRequests      DataSubjectRequest[]
+  staffAnnouncements StaffAnnouncement[]
+  auditEvents        AuditEvent[]
 
   @@map("tenants")
   @@schema("public")
@@ -131,6 +141,7 @@ model Membership {
   role             MembershipRole
   active           Boolean        @default(true)
   departmentId     String?        @db.Uuid
+  patientId        String?        @db.Uuid // <-- FIX: Added for patient portal mapping
   employmentStatus String         @default("ACTIVE")
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -138,14 +149,19 @@ model Membership {
   tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user       UserIdentity @relation(fields: [userId], references: [id], onDelete: Cascade)
   department Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  
+  // Relation to the actual patient record this membership is linked to
+  patient    Patient?     @relation("PatientPrimary", fields: [patientId], references: [id], onDelete: SetNull)
 
   appointments              Appointment[]
   accessRequestsAsRequester AccessRequest[] @relation("AccessRequestsAsRequester")
   accessGrantsAsGrantee     AccessGrant[]   @relation("AccessGrantsAsGrantee")
+  dataSubjectRequests       DataSubjectRequest[] @relation("DSRRequester")
 
   @@unique([tenantId, userId])
   @@index([tenantId])
   @@index([departmentId])
+  @@index([patientId])
   @@map("memberships")
   @@schema("public")
 }
@@ -161,14 +177,29 @@ model Patient {
   lastName       String
   dateOfBirth    DateTime @db.Date
   hospitalNumber String   @unique
+  nationalId             String?
+  email                  String?
+  phone                  String?
+  emergencyContactName   String?
+  emergencyContactPhone  String?
+  lastProfileUpdateAt    DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  appointments   Appointment[]
-  consents       Consent[]
-  accessRequests AccessRequest[]
-  accessGrants   AccessGrant[]
+  tenant            Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointments      Appointment[]
+  consents          Consent[]
+  accessRequests    AccessRequest[]
+  accessGrants      AccessGrant[]
+  memberships       Membership[]        @relation("PatientPrimary")
+  documents         PatientDocument[]
+  representatives   Representative[]
+  emergencyAccess   EmergencyAccess[]
+  notifications     Notification[]
+  devices           PatientDevice[]
+  sessions          PatientSession[]
+  securityAlerts    SecurityAlert[]
+  dataSubjectRequests DataSubjectRequest[]
 
   @@index([tenantId])
   @@map("patients")
@@ -290,6 +321,7 @@ model AuditEvent {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String?  @db.Uuid
   actorUserId   String?  @db.Uuid
+  tenant        Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   action        String
   resourceType  String?
   resourceId    String?
@@ -302,5 +334,237 @@ model AuditEvent {
   @@index([tenantId, createdAt])
   @@index([correlationId])
   @@map("audit_events")
+  @@schema("public")
+}
+
+// ============================================================
+// Documents & Vault
+// ============================================================
+
+model PatientDocument {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @db.Uuid
+  patientId        String    @db.Uuid
+  storageKey       String
+  filename         String
+  mimeType         String
+  sizeBytes        Int
+  classification   String?
+  watermarkEnabled Boolean   @default(true)
+  uploadedAt       DateTime  @default(now())
+  deletedAt        DateTime?
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, patientId])
+  @@map("patient_documents")
+  @@schema("public")
+}
+
+// ============================================================
+// Representatives
+// ============================================================
+
+model Representative {
+  id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                   String    @db.Uuid
+  patientId                  String    @db.Uuid
+  representativeMembershipId String    @db.Uuid
+  authorityType              String
+  scope                      String[]
+  validUntil                 DateTime?
+  verificationStatus         String    @default("PENDING")
+  initiatedBy                String
+  requestedByMembershipId    String    @db.Uuid
+  approvedByMembershipId     String?   @db.Uuid
+  approvedAt                 DateTime?
+  evidenceNote               String?
+  rejectionReason            String?
+  revokedAt                  DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, patientId])
+  @@index([representativeMembershipId])
+  @@map("representatives")
+  @@schema("public")
+}
+
+// ============================================================
+// Emergency Access
+// ============================================================
+
+model EmergencyAccess {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @db.Uuid
+  patientId     String    @db.Uuid
+  staffMemberId String    @db.Uuid
+  justification String
+  purpose       String
+  scope         String[]
+  validUntil    DateTime
+  revokedAt     DateTime?
+  revokedBy     String?   @db.Uuid
+  reviewedAt    DateTime?
+  reviewedBy    String?   @db.Uuid
+  reviewOutcome String?
+  createdAt     DateTime  @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, patientId])
+  @@index([staffMemberId])
+  @@map("emergency_access")
+  @@schema("public")
+}
+
+// ============================================================
+// Notifications & DSR
+// ============================================================
+
+model Notification {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @db.Uuid
+  patientId    String    @db.Uuid
+  type         String
+  title        String
+  message      String
+  resourceType String?
+  resourceId   String?
+  isRead       Boolean   @default(false)
+  readAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, patientId, isRead])
+  @@map("notifications")
+  @@schema("public")
+}
+
+model DataSubjectRequest {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @db.Uuid
+  referenceNumber String    @unique
+  requesterId     String    @db.Uuid
+  patientId       String?   @db.Uuid
+  type            String
+  description     String
+  status          String    @default("PENDING")
+  adminResponse   String?
+  respondedBy     String?   @db.Uuid
+  respondedAt     DateTime?
+  closedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  requester Membership @relation("DSRRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  patient   Patient?   @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([requesterId])
+  @@index([patientId])
+  @@map("tb_data_subject_requests")
+  @@schema("public")
+}
+
+// ============================================================
+// Session Tracking & Security
+// ============================================================
+
+model PatientDevice {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @db.Uuid
+  userId      String   @db.Uuid
+  fingerprint String   @unique
+  label       String
+  userAgent   String?
+  platform    String?
+  trusted     Boolean  @default(false)
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient  Patient          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions PatientSession[]
+
+  @@index([tenantId, userId])
+  @@map("tb_patient_devices")
+  @@schema("public")
+}
+
+model PatientSession {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @db.Uuid
+  userId     String   @db.Uuid
+  deviceId   String   @db.Uuid
+  userAgent  String?
+  ipAddress  String?
+  location   String?
+  status     PatientSessionStatus   @default(ACTIVE)
+  revokedAt  DateTime?
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient Patient       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device  PatientDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, status])
+  @@map("tb_patient_sessions")
+  @@schema("public")
+}
+
+model SecurityAlert {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @db.Uuid
+  userId       String   @db.Uuid
+  kind         String
+  severity     String
+  title        String
+  description  String
+  metadata     Json?
+  acknowledged   Boolean   @default(false)
+  acknowledgedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@map("tb_security_alerts")
+  @@schema("public")
+}
+
+// ============================================================
+// Staff Announcements
+// ============================================================
+
+model StaffAnnouncement {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @db.Uuid
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("staff_announcements")
+  @@schema("public")
+}
+
+enum PatientSessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
   @@schema("public")
 }

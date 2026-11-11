@@ -4,51 +4,20 @@
 
 @layer base {
   :root {
-    --bg-main: #f3f4f6;
-    --bg-card: #ffffff;
-    --text-main: #111827;
-    --text-muted: #6b7280;
-    --border-color: #e5e7eb;
+    --background: 210 40% 98%;
+    --foreground: 222.2 84% 4.9%;
   }
 
   .dark {
-    --bg-main: #0f172a;
-    --bg-card: #1e293b;
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
-    --border-color: #334155;
-  }
-
-  body {
-    background-color: var(--bg-main);
-    color: var(--text-main);
-    transition: background-color 0.3s, color 0.3s;
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
   }
 }
 
-/* GLOBAL DARK MODE OVERRIDES (Ensures text is always readable) */
-.dark body { background-color: var(--bg-main) !important; color: var(--text-main) !important; }
-.dark .bg-white { background-color: var(--bg-card) !important; }
-.dark .bg-gray-50 { background-color: var(--bg-main) !important; }
-.dark .bg-gray-100 { background-color: var(--border-color) !important; }
-.dark .bg-gray-800 { background-color: var(--bg-card) !important; }
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
 
-/* Force all dark text to become light */
-.dark .text-gray-900,
-.dark .text-gray-800,
-.dark .text-gray-700,
-.dark .text-black { color: var(--text-main) !important; }
-
-.dark .text-gray-600,
-.dark .text-gray-500,
-.dark .text-gray-400 { color: var(--text-muted) !important; }
-
-.dark .border-gray-200,
-.dark .border-gray-100 { border-color: var(--border-color) !important; }
-
-/* Form Inputs */
-.dark input, .dark textarea, .dark select {
-  background-color: var(--bg-main) !important;
-  color: var(--text-main) !important;
-  border-color: var(--border-color) !important;
+.dark body {
+  @apply bg-slate-900 text-slate-100;
 }

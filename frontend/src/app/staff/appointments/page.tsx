@@ -1,24 +1,37 @@
 "use client";
-import Link from "next/link";
-import { ArrowLeft, Calendar } from "lucide-react";
+import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
+import AppShell from "@/components/AppShell";
+import { Card } from "@/components/ui/Card";
+import { Calendar } from "lucide-react";
 
-export default function StaffAppointmentsPage() {
+export default function StaffAppointments() {
+  const [appts, setAppts] = useState<any[]>([]);
+  useEffect(() => {
+    apiFetch<{items: any[]}>("/appointments").then(res => setAppts(res.items)).catch(() => {});
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Link href="/staff" className="text-gray-500 hover:text-gray-900 dark:hover:text-white"><ArrowLeft className="w-5 h-5" /></Link>
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">My Schedule</h1>
+    <AppShell portal="staff">
+      <div className="max-w-4xl mx-auto p-6">
+        <h1 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">My Schedule</h1>
+        <div className="space-y-4">
+          {appts.length === 0 ? (
+            <Card className="p-8 text-center text-slate-500">No upcoming appointments.</Card>
+          ) : appts.map(a => (
+            <Card key={a.id} className="p-4 flex gap-4 items-center">
+              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400">
+                <Calendar className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-slate-800 dark:text-white">{a.firstName} {a.lastName}</h3>
+                <p className="text-sm text-slate-500">{new Date(a.scheduledAt).toLocaleString()} • {a.durationMins} mins</p>
+                <p className="text-xs text-slate-400 mt-1">Reason: {a.reason || 'General checkup'}</p>
+              </div>
+            </Card>
+          ))}
         </div>
-      </header>
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-10 text-center">
-          <Calendar className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Appointments module</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">The full appointment calendar is part of the next development phase. Staff can request access via the Patient Directory on the dashboard.</p>
-          <Link href="/staff" className="mt-6 inline-block text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to dashboard</Link>
-        </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

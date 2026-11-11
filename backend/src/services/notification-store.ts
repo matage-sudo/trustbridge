@@ -5,13 +5,7 @@ import { randomUUID } from 'crypto';
 // this Windows host (P1001 on findFirst/findUnique even though pg/net connect
 // work fine), so notifications use pg directly. This is isolated: no other
 // code path uses this pool.
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 5,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 10_000,
-});
+import { pool } from '../db';
 
 export type NotificationType =
   | 'access.granted'

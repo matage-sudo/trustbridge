@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { currentTenant } from '../middleware/tenantContext';
 import { UUID_RE } from '../services/representation';
-import { Pool } from 'pg';
+import { prisma } from '../models/prisma';
 import {
   listNotifications,
   markRead,
@@ -10,64 +10,92 @@ import {
 
 export const notificationsRouter = Router();
 
-// pg-based membership lookup. Avoids Prisma's failing engine; pg is proven
-// to work on this machine. Only used here — not a replacement for
-// callerMembership() elsewhere.
-const membershipsPool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 2,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 10_000,
-});
-
-async function membershipForPatient(tenantId: string, userId: string):
-  Promise<{ id: string; patientId: string | null } | null> {
-  const r = await membershipsPool.query(
-    `SELECT id, "patientId" FROM public.memberships
-      WHERE "tenantId" = $1 AND "userId" = $2
-      LIMIT 1`,
-    [tenantId, userId]
-  );
-  return r.rows[0] ?? null;
+/**
+ * Resolve the caller's membership + linked patient for the current tenant.
+ * Uses Prisma (fast, typed). Falls back to null if the caller has no membership.
+ */
+async function membershipForPatient(
+  tenantId: string,
+  userId: string
+): Promise<{ id: string; patientId: string | null } | null> {
+  const m = await prisma.membership.findFirst({
+    where: { tenantId, userId, active: true },
+    select: { id: true, patientId: true },
+  });
+  return m ?? null;
 }
 
+// GET /v1/me/notifications
 notificationsRouter.get('/', async (req, res, next) => {
   try {
     const { tenantId, userId } = currentTenant();
-    const me = await membershipForPatient(tenantId, userId);
-    if (!me?.patientId) { res.status(403).json({ error: 'no_patient_linked' }); return; }
+    const m = await membershipForPatient(tenantId, userId);
+
+    // Non-patients (admins, staff) have no patient link → return empty, not 403.
+    // This avoids spamming the bell for users who aren't patients.
+    if (!m || !m.patientId) {
+      res.json({ items: [], unreadCount: 0 });
+      return;
+    }
 
     const limit = Math.min(Number(req.query.limit) || 50, 100);
     const unreadOnly = req.query.unread === 'true';
-
-    const { items, unreadCount } = await listNotifications({
-      tenantId, patientId: me.patientId, limit, unreadOnly,
+    const result = await listNotifications({
+      tenantId,
+      patientId: m.patientId,
+      limit,
+      unreadOnly,
     });
-    res.json({ items, unreadCount });
-  } catch (err) { next(err); }
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
 });
 
-notificationsRouter.patch('/:id/read', async (req, res, next) => {
+// POST /v1/me/notifications/:id/read
+notificationsRouter.post('/:id/read', async (req, res, next) => {
   try {
     const { tenantId, userId } = currentTenant();
-    const me = await membershipForPatient(tenantId, userId);
-    if (!me?.patientId) { res.status(403).json({ error: 'no_patient_linked' }); return; }
-    if (!UUID_RE.test(String(req.params.id ?? ''))) { res.status(400).json({ error: 'invalid_id' }); return; }
+    const m = await membershipForPatient(tenantId, userId);
 
-    const updated = await markRead({ tenantId, patientId: me.patientId, id: req.params.id! });
-    if (!updated) { res.status(404).json({ error: 'not_found' }); return; }
+    if (!m || !m.patientId) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
+    if (!UUID_RE.test(String(req.params.id ?? ''))) {
+      res.status(400).json({ error: 'invalid_id' });
+      return;
+    }
+
+    const updated = await markRead({
+      tenantId,
+      patientId: m.patientId,
+      id: req.params.id,
+    });
+    if (!updated) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
     res.json(updated);
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
+// POST /v1/me/notifications/read-all
 notificationsRouter.post('/read-all', async (req, res, next) => {
   try {
     const { tenantId, userId } = currentTenant();
-    const me = await membershipForPatient(tenantId, userId);
-    if (!me?.patientId) { res.status(403).json({ error: 'no_patient_linked' }); return; }
+    const m = await membershipForPatient(tenantId, userId);
 
-    const updated = await markAllRead({ tenantId, patientId: me.patientId });
-    res.json({ updated });
-  } catch (err) { next(err); }
+    if (!m || !m.patientId) {
+      res.json({ marked: 0 });
+      return;
+    }
+
+    const marked = await markAllRead({ tenantId, patientId: m.patientId });
+    res.json({ marked });
+  } catch (err) {
+    next(err);
+  }
 });

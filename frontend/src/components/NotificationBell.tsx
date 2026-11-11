@@ -1,54 +1,30 @@
 "use client";
-
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
-import Link from "next/link";
 import { Bell } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import Link from "next/link";
 
 export default function NotificationBell() {
-  const pathname = usePathname();
-  const [count, setCount] = useState<number | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const fetchCount = async () => {
+    const fetchNotifs = async () => {
       try {
-        const r = await apiFetch<{ items: unknown[]; unreadCount: number }>(
-          "/me/notifications?limit=1"
-        );
-        if (!cancelled) {
-          const n = typeof r?.unreadCount === "number" ? r.unreadCount : 0;
-          setCount(n);
-        }
-      } catch {
-        if (!cancelled) setCount(null);
-      }
+        const res = await apiFetch<{ items: any[] }>("/me/notifications?limit=5");
+        const unread = res.items.filter((n) => !n.isRead).length;
+        setUnreadCount(unread);
+      } catch (err) {}
     };
-
-    fetchCount();
-    const interval = setInterval(fetchCount, 10_000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [pathname]);
-
-  const showDot = count !== null && count > 0;
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
-    <Link
-      href="/patient/notifications"
-      className="relative flex items-center gap-2 text-sm font-medium hover:text-blue-200"
-      aria-label={showDot ? `${count} unread notifications` : "Notifications"}
-    >
-      <Bell className="w-4 h-4" />
-      <span>Notifications</span>
-      {showDot && (
-        <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold">
-          {count! > 99 ? "99+" : count}
-        </span>
+    <Link href="/patient/notifications" className="relative p-2 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
+      <Bell className="w-5 h-5" />
+      {unreadCount > 0 && (
+        <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-900 animate-pulse" />
       )}
     </Link>
   );

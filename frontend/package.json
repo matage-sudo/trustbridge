@@ -1,42 +1,44 @@
 {
-    "name": "trustbridge-frontend",
-    "version": "1.0.0",
-    "private": true,
-    "scripts": {
-        "dev": "next dev",
-        "build": "next build",
-        "start": "next start",
-        "lint": "next lint",
-        "type-check": "tsc --noEmit"
-    },
-    "dependencies": {
-        "@hookform/resolvers": "^7.0.1",
-        "@supabase/ssr": "^0.12.7",
-        "@supabase/supabase-js": "^2.119.0",
-        "class-variance-authority": "^0.7.1",
-        "clsx": "^2.1.1",
-        "lucide-react": "^1.66.0",
-        "next": "^15.5.28",
-        "next-themes": "^0.4.6",
-        "react": "^19.3.1",
-        "react-dom": "^19.3.1",
-        "react-hook-form": "^7.91.0",
-        "recharts": "^3.10.1",
-        "resend": "^6.37.0",
-        "tailwind-merge": "^3.7.0",
-        "zod": "^4.6.7"
-    },
-    "devDependencies": {
-        "@types/node": "^26.6.6",
-        "@types/react": "^19.3.0",
-        "@types/react-dom": "^19.3.0",
-        "autoprefixer": "^10.6.2",
-        "eslint": "^9.39.5",
-        "eslint-config-next": "^15.5.28",
-        "postcss": "^8.5.32",
-        "prettier": "^3.9.10",
-        "prettier-plugin-tailwindcss": "^0.8.1",
-        "tailwindcss": "^3.4.19",
-        "typescript": "5.7"
-    }
+  "name": "trustbridge-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^3.9.1",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.47.10",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "next": "^15.0.0",
+    "next-themes": "^0.4.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.54.2",
+    "react-markdown": "^10.1.0",
+    "recharts": "^2.15.0",
+    "remark-gfm": "^4.0.1",
+    "resend": "^4.0.1",
+    "tailwind-merge": "^2.5.5",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8",
+    "eslint-config-next": "15.0.0",
+    "postcss": "^8",
+    "prettier": "^3.3.3",
+    "prettier-plugin-tailwindcss": "^0.6.6",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5"
+  }
 }

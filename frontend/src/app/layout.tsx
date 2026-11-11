@@ -2,17 +2,21 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "TrustBridge",
-  description: "Secure Healthcare Data Governance",
+  title: "TrustBridge | Secure Healthcare Management",
+  description: "Zero-trust healthcare data governance and management platform.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} bg-slate-50 text-slate-900`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.variable} font-sans min-h-screen`}>
         {children}
       </body>
     </html>
