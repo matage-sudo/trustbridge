@@ -1,0 +1,124 @@
+import { createClient } from "./supabase";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:4000/v1";
+
+type Context = {
+  userId: string;
+  tenantId: string;
+  role: string;
+};
+
+let cachedContext: Context | null = null;
+
+export async function getApiContext(): Promise<Context> {
+  if (cachedContext) return cachedContext;
+
+  const { data, error } = await createClient().auth.getSession();
+  const token = data.session?.access_token;
+  if (error || !token) throw new Error("Not authenticated");
+
+  const response = await fetch(`${API_URL}/me/context`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const context = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(context.error ?? `Unable to load account context (${response.status})`);
+  }
+
+  cachedContext = {
+    userId: context.userId,
+    tenantId: context.tenantId,
+    role: context.role,
+  };
+  return cachedContext;
+}
+
+export function clearApiCache() {
+  cachedContext = null;
+}
+
+// ---------------------------------------------------------------------------
+// Acting-for support.
+// A representative can open a patient's records by setting `actingFor` in
+// localStorage. The value is the *patient id* (not the grant id). Every
+// request automatically carries `x-acting-for` when it is set. The server
+// still enforces the scope check; this header alone grants nothing.
+// ---------------------------------------------------------------------------
+const ACTING_FOR_KEY = "actingFor";
+
+export function getActingFor(): string | null {
+  if (typeof window === "undefined") return null;
+  try { return localStorage.getItem(ACTING_FOR_KEY); } catch { return null; }
+}
+
+export function setActingFor(patientId: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (patientId) localStorage.setItem(ACTING_FOR_KEY, patientId);
+    else localStorage.removeItem(ACTING_FOR_KEY);
+  } catch { /* ignore quota / private mode */ }
+}
+
+// ---------------------------------------------------------------------------
+export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const ctx = await getApiContext();
+
+  const session = await createClient().auth.getSession();
+  const token = session?.data?.session?.access_token;
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+      "x-tenant-id": ctx.tenantId,
+      "x-user-id": ctx.userId,
+      "x-role": ctx.role,
+      ...options.headers,
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `API Error: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+// --- Sprint A helpers: multipart upload and binary download ---
+async function rawFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const ctx = await getApiContext();
+  const session = await createClient().auth.getSession();
+  const token = session?.data?.session?.access_token;
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "x-tenant-id": ctx.tenantId,
+      "x-user-id": ctx.userId,
+      "x-role": ctx.role,
+      ...options.headers,
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const err: any = new Error(body.error || `API Error: ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res;
+}
+
+export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
+  // No Content-Type here: the browser sets the multipart boundary itself
+  const res = await rawFetch(path, { method: "POST", body: form });
+  return res.json();
+}
+
+export async function apiBlob(path: string): Promise<Blob> {
+  const res = await rawFetch(path);
+  return res.blob();
+}

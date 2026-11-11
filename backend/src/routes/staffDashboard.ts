@@ -1,53 +1,58 @@
 import { Router } from 'express';
 import { currentTenant } from '../middleware/tenantContext';
 import { callerMembership } from '../services/representation';
-import { Pool } from 'pg';
+import { prisma } from '../models/prisma';
 
 export const staffDashboardRouter = Router();
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
 
 staffDashboardRouter.get('/', async (req, res, next) => {
   try {
     const { tenantId } = currentTenant();
     const me = await callerMembership();
-    if (!me) { res.status(403).json({ error: 'no_membership' }); return; }
-
-    // 1. Emergency reviews (unreviewed)
-    const emergency = await pool.query(
-      `SELECT COUNT(*)::int as count FROM public.emergency_access 
-       WHERE "tenantId" = $1 AND "reviewedAt" IS NULL AND "validUntil" > now()`,
-      [tenantId]
-    );
-
-    // 2. Pending rep requests
-    let pendingReps = 0;
-    if (['HOSPITAL_ADMIN', 'PRIVACY_OFFICER'].includes(me.role as string)) {
-      const reps = await pool.query(
-        `SELECT COUNT(*)::int as count FROM public.representatives 
-         WHERE "tenantId" = $1 AND "verificationStatus" = 'PENDING'`,
-        [tenantId]
-      );
-      pendingReps = reps.rows[0].count;
+    if (!me) { 
+      res.status(403).json({ error: 'no_membership' }); 
+      return; 
     }
 
-    // 3. Announcements
-    const ann = await pool.query(
-      `SELECT id, title, content, "createdAt" FROM public.staff_announcements 
-       WHERE "tenantId" = $1 ORDER BY "createdAt" DESC LIMIT 5`,
-      [tenantId]
-    );
+    const emergencyCount = await prisma.emergencyAccess.count({
+      where: {
+        tenantId,
+        reviewedAt: null,
+        validUntil: { gt: new Date() },
+      },
+    });
+
+    let pendingReps = 0;
+    if (['HOSPITAL_ADMIN', 'PRIVACY_OFFICER'].includes(me.role as string)) {
+      pendingReps = await prisma.representative.count({
+        where: {
+          tenantId,
+          verificationStatus: 'PENDING',
+        },
+      });
+    }
+
+    const announcements = await prisma.staffAnnouncement.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        createdAt: true,
+      },
+    });
 
     res.json({
       stats: {
-        pendingEmergencyReviews: emergency.rows[0].count,
+        pendingEmergencyReviews: emergencyCount,
         pendingRepresentativeRequests: pendingReps,
         role: me.role,
       },
-      announcements: ann.rows,
+      announcements,
     });
-  } catch (err) { next(err); }
+  } catch (err) { 
+    next(err); 
+  }
 });

@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Shield, ShieldAlert, LayoutDashboard, FileText, Users, Settings, LogOut, Activity, Menu, User } from "lucide-react";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Shield, ShieldAlert, LayoutDashboard, FileText, Users, Settings, LogOut, Activity, Menu, User, Calendar, ClipboardCheck } from "lucide-react";
+import { useState, useEffect } from "react";
 import NotificationBell from "./NotificationBell";
 import ThemeToggle from "./ThemeToggle";
+import { createClient } from "@/lib/supabase";
+import { clearApiCache, getApiContext } from "@/lib/api";
 
 export default function AppShell({
   children,
@@ -15,7 +17,50 @@ export default function AppShell({
   portal: "patient" | "staff" | "admin";
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+  const [isAuthorized, setIsAuthorized] = useState(false);
+
+  // HARD SECURITY GUARD
+  useEffect(() => {
+    let mounted = true;
+    
+    getApiContext().then((ctx) => {
+      if (!mounted) return;
+      
+      const role = ctx.role;
+      
+      // 1. Patients can only access the patient portal
+      if (portal === "patient" && role !== "PATIENT") {
+        router.replace(role === "STAFF" ? "/staff" : "/admin");
+        return;
+      }
+      
+      // 2. Staff can only access the staff portal
+      if (portal === "staff" && role !== "STAFF" && role !== "HOSPITAL_ADMIN") {
+        router.replace(role === "PATIENT" ? "/patient" : "/admin");
+        return;
+      }
+
+      // 3. Admins can only access the admin portal
+      if (portal === "admin" && role === "PATIENT") {
+        router.replace("/patient");
+        return;
+      }
+      if (portal === "admin" && role === "STAFF") {
+        router.replace("/staff");
+        return;
+      }
+
+      // If we get here, the role matches the portal
+      setIsAuthorized(true);
+    }).catch(() => {
+      router.replace("/login");
+    });
+
+    return () => { mounted = false; };
+  }, [portal, router]);
 
   const patientLinks = [
     { name: "Dashboard", href: "/patient", icon: LayoutDashboard },
@@ -31,27 +76,43 @@ export default function AppShell({
     { name: "Compliance", href: "/admin/compliance", icon: Settings },
   ];
 
-  const links = portal === "staff" ? staffLinks : patientLinks;
-  const brand = portal === "patient" ? "TrustBridge Patient" : portal === "staff" ? "TrustBridge Clinical" : "TrustBridge Admin";
+  const adminLinks = [
+    { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+    { name: "Staff", href: "/admin/staff", icon: Users },
+    { name: "Patients", href: "/admin/patients", icon: User },
+    { name: "Appointments", href: "/admin/appointments", icon: Calendar },
+    { name: "Consents", href: "/admin/consents", icon: Shield },
+    { name: "Access Requests", href: "/admin/access-requests", icon: ClipboardCheck },
+    { name: "Compliance", href: "/admin/compliance", icon: Settings },
+    { name: "Audit Log", href: "/admin/audit", icon: Activity },
+  ];
 
-  // Profile destination per portal
-  const profileHref =
-    portal === "patient" ? "/patient/profile" : portal === "staff" ? "/staff" : "/admin";
+  const links = portal === "staff" ? staffLinks : portal === "admin" ? adminLinks : patientLinks;
+  const brand = portal === "patient" ? "TrustBridge Patient" : portal === "staff" ? "TrustBridge Clinical" : "TrustBridge Admin";
+  
+  const handleLogout = async () => {
+    setLogoutError("");
+    const { error } = await createClient().auth.signOut();
+    if (error) {
+      setLogoutError("Unable to log out. Please try again.");
+      return;
+    }
+    clearApiCache();
+    router.replace("/login");
+    router.refresh();
+  };
+
+  const profileHref = portal === "patient" ? "/patient/profile" : portal === "staff" ? "/staff" : "/admin";
+
+  if (!isAuthorized) return <div className="h-screen flex items-center justify-center bg-gray-50 text-gray-500">Verifying access...</div>;
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-hidden font-sans">
       {mobileOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-200 ease-in-out ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
-        } md:relative md:translate-x-0 flex flex-col`}
-      >
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-200 ease-in-out ${mobileOpen ? "translate-x-0" : "-translate-x-full"} md:relative md:translate-x-0 flex flex-col`}>
         <div className="h-16 flex items-center gap-3 px-6 border-b border-gray-200 dark:border-gray-700">
           <Activity className="w-6 h-6 text-blue-600 dark:text-blue-400" />
           <span className="font-bold text-lg tracking-tight">{brand}</span>
@@ -60,17 +121,9 @@ export default function AppShell({
         <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
           <p className="px-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Menu</p>
           {links.map((link) => {
-            const active = pathname === link.href || (link.href !== "/staff" && pathname.startsWith(link.href));
+            const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
             return (
-              <Link
-                key={link.name}
-                href={link.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                }`}
-              >
+              <Link key={link.name} href={link.href} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${active ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50"}`}>
                 <link.icon className={`w-5 h-5 ${active ? "text-blue-700 dark:text-blue-300" : "text-gray-400"}`} />
                 {link.name}
               </Link>
@@ -79,12 +132,10 @@ export default function AppShell({
         </nav>
 
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <Link
-            href="/login"
-            className="flex items-center gap-3 px-3 py-2.5 w-full rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-          >
+          {logoutError && <p role="alert" className="mb-2 px-3 text-xs text-red-600">{logoutError}</p>}
+          <button type="button" onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 w-full rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
             <LogOut className="w-5 h-5" /> Log out
-          </Link>
+          </button>
         </div>
       </aside>
 
@@ -93,17 +144,11 @@ export default function AppShell({
           <button className="md:hidden p-2 -ml-2 text-gray-500" onClick={() => setMobileOpen(true)}>
             <Menu className="w-6 h-6" />
           </button>
-
           <div className="flex-1" />
-
           <div className="flex items-center gap-4">
             <ThemeToggle />
             <NotificationBell />
-            <Link
-              href={profileHref}
-              className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold text-xs hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer"
-              aria-label="Go to profile"
-            >
+            <Link href={profileHref} className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold text-xs hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer" aria-label="Go to profile">
               JD
             </Link>
           </div>

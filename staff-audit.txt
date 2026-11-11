@@ -1,0 +1,203 @@
+﻿NOW: 11/11/2026 02:30:38
+
+=== 1. files changed in the last 24h (newest first) ===
+11-11 01:34:47  backend\src\routes\staffDashboard.ts  (1441 bytes)
+11-11 01:32:48  backend\src\routes\staffDashboard.ts.bak  (1679 bytes)
+11-11 01:24:23  backend\src\middleware\tenantMiddleware.ts  (1723 bytes)
+11-11 01:20:35  frontend\src\lib\api.ts.bak  (4009 bytes)
+11-11 01:20:35  frontend\src\lib\api.ts  (4009 bytes)
+11-11 01:20:00  backend\src\server.ts  (4389 bytes)
+11-11 01:19:26  frontend\src\components\AppShell.tsx  (6228 bytes)
+11-11 01:18:47  frontend\src\app\login\page.tsx  (3723 bytes)
+11-11 00:59:34  frontend\src\app\patient\documents\page.tsx  (10374 bytes)
+11-11 00:59:16  frontend\src\app\staff\emergency\page.tsx  (6604 bytes)
+11-11 00:59:12  frontend\src\app\patient\security\page.tsx  (11411 bytes)
+11-11 00:59:09  frontend\src\app\admin\consents\page.tsx  (12342 bytes)
+11-11 00:59:03  frontend\src\app\admin\appointments\page.tsx  (12930 bytes)
+11-11 00:50:56  frontend\src\app\staff\ai-risk\page.tsx  (7623 bytes)
+11-11 00:49:53  backend\src\routes\aiRisk.ts  (3230 bytes)
+11-11 00:46:27  frontend\src\app\staff\page.tsx  (10479 bytes)
+11-11 00:44:02  backend\src\middleware\auth.ts  (2480 bytes)
+11-11 00:05:28  backend\src\services\jwt.ts  (1450 bytes)
+11-10 20:30:10  frontend\src\app\patient\profile\page.tsx  (7162 bytes)
+11-10 20:24:38  frontend\src\app\patient\page.tsx  (9501 bytes)
+11-10 20:07:17  frontend\src\app\staff\appointments\page.tsx  (1455 bytes)
+11-10 19:54:17  frontend\src\app\staff\request-access\page.tsx  (4745 bytes)
+11-10 19:53:39  frontend\src\app\patient\dsr\new\page.tsx  (4131 bytes)
+11-10 19:43:47  frontend\src\app\admin\page.tsx  (6745 bytes)
+11-10 19:38:06  frontend\src\app\globals.css  (1503 bytes)
+11-10 18:47:01  backend\src\services\notify.ts  (961 bytes)
+11-10 18:46:30  frontend\src\components\ThemeToggle.tsx  (881 bytes)
+11-10 18:46:30  frontend\src\components\LanguageToggle.tsx  (718 bytes)
+11-10 18:38:32  frontend\src\app\admin\compliance\page.tsx  (9371 bytes)
+11-10 18:37:50  backend\src\routes\compliance.ts  (5310 bytes)
+11-10 17:52:01  frontend\src\components\NotificationBell.tsx  (1566 bytes)
+11-10 14:07:03  backend\src\middleware\sessionTracker.ts  (3810 bytes)
+11-10 11:53:19  backend\src\services\audit.ts  (787 bytes)
+11-10 11:48:08  backend\src\routes\emergency.ts  (6887 bytes)
+11-10 11:24:11  backend\src\routes\documents.ts  (7247 bytes)
+11-10 10:44:33  frontend\src\app\patient\notifications\page.tsx  (7617 bytes)
+11-10 10:37:39  backend\src\routes\notifications.ts  (2663 bytes)
+11-10 10:36:17  backend\src\services\notification-store.ts  (3701 bytes)
+11-10 10:10:59  backend\src\routes\representatives.ts  (16002 bytes)
+11-10 09:22:39  frontend\src\app\admin\representatives\page.tsx  (13877 bytes)
+11-10 09:14:51  frontend\src\components\ActingForBanner.tsx  (2771 bytes)
+11-10 09:09:48  frontend\src\app\patient\representatives\page.tsx  (12183 bytes)
+11-10 09:03:16  backend\src\services\policyEngine.ts  (2085 bytes)
+11-10 08:44:58  backend\src\routes\profile.ts  (3242 bytes)
+11-10 08:44:55  backend\src\services\representation.ts  (3017 bytes)
+
+=== 2. everything under frontend\src\app\staff ===
+11-11 00:46:27  frontend\src\app\staff\page.tsx  (10479 bytes)
+11-11 00:50:56  frontend\src\app\staff\ai-risk\page.tsx  (7623 bytes)
+11-10 20:07:17  frontend\src\app\staff\appointments\page.tsx  (1455 bytes)
+11-11 00:59:16  frontend\src\app\staff\emergency\page.tsx  (6604 bytes)
+11-10 19:54:17  frontend\src\app\staff\request-access\page.tsx  (4745 bytes)
+
+=== 2b. any other folder or file with 'staff' in its name (possible duplicate routes) ===
+frontend\src\app\staff
+frontend\src\app\admin\staff
+backend\src\routes\staff.ts
+backend\src\routes\staffDashboard.ts
+backend\src\routes\staffDashboard.ts.bak
+
+=== 3. frontend: every other file that mentions staff (outside app\staff) ===
+frontend\src\app\admin\access-requests\page.tsx:80: <p className="text-sm text-slate-500 mt-1">Review and approve staff requests to view patient records.</p>
+frontend\src\app\admin\appointments\page.tsx:15: staff: { id: string; user: { displayName: string | null; email: string } };
+frontend\src\app\admin\appointments\page.tsx:25: type StaffRow = {
+frontend\src\app\admin\appointments\page.tsx:47: const [staff, setStaff] = useState<StaffRow[]>([]);
+frontend\src\app\admin\appointments\page.tsx:53: staffId: "",
+frontend\src\app\admin\appointments\page.tsx:67: apiFetch<{ items: StaffRow[] }>("/staff"),
+frontend\src\app\admin\appointments\page.tsx:72: setStaff(st.items);
+frontend\src\app\admin\appointments\page.tsx:89: staffId: form.staffId,
+frontend\src\app\admin\appointments\page.tsx:99: setForm({ patientId: "", staffId: "", scheduledAt: "", durationMins: 30, reason: "" });
+frontend\src\app\admin\appointments\page.tsx:170: <label className="block text-xs font-medium text-slate-600 mb-1">Staff</label>
+frontend\src\app\admin\appointments\page.tsx:173: value={form.staffId}
+frontend\src\app\admin\appointments\page.tsx:174: onChange={(e) => setForm({ ...form, staffId: e.target.value })}
+frontend\src\app\admin\appointments\page.tsx:177: <option value="">Select staff...</option>
+frontend\src\app\admin\appointments\page.tsx:178: {staff.map((s) => (
+frontend\src\app\admin\appointments\page.tsx:251: <th className="px-6 py-3 font-medium">Staff</th>
+frontend\src\app\admin\appointments\page.tsx:293: {a.staff.user.displayName || a.staff.user.email}
+frontend\src\app\admin\staff\page.tsx:8: type Staff = {
+frontend\src\app\admin\staff\page.tsx:18: STAFF: "Staff",
+frontend\src\app\admin\staff\page.tsx:25: export default function StaffPage() {
+frontend\src\app\admin\staff\page.tsx:26: const [staff, setStaff] = useState<Staff[]>([]);
+frontend\src\app\admin\staff\page.tsx:33: apiFetch<{ items: Staff[] }>(`/staff?search=${encodeURIComponent(search)}`)
+frontend\src\app\admin\staff\page.tsx:34: .then((res) => setStaff(res.items))
+frontend\src\app\admin\staff\page.tsx:53: <h1 className="text-2xl font-bold text-slate-900">Staff</h1>
+frontend\src\app\admin\staff\page.tsx:55: Manage hospital staff, departments, and roles.
+frontend\src\app\admin\staff\page.tsx:91: ) : staff.length === 0 ? (
+frontend\src\app\admin\staff\page.tsx:94: No staff found.
+frontend\src\app\admin\staff\page.tsx:98: staff.map((s) => (
+frontend\src\app\login\page.tsx:33: } else if (role === "STAFF" || role === "NURSE") {
+frontend\src\app\login\page.tsx:34: router.replace("/staff");
+frontend\src\app\patient\representatives\page.tsx:91: setNotice("Invitation created. Hospital staff must verify it before it takes effect.");
+frontend\src\app\patient\representatives\page.tsx:145: A representative can open parts of your record on your behalf. Staff must verify every grant before it takes effect.
+frontend\src\app\patient\representatives\page.tsx:218: <span className="text-gray-700 font-medium">Note for staff (optional)</span>
+frontend\src\app\patient\security\page.tsx:266: <li>• Never share your TrustBridge password with anyone, including hospital staff.</li>
+frontend\src\components\AppShell.tsx:18: portal: "patient" | "staff" | "admin";
+frontend\src\components\AppShell.tsx:33: const staffLinks = [
+frontend\src\components\AppShell.tsx:34: { name: "Dashboard", href: "/staff", icon: LayoutDashboard },
+frontend\src\components\AppShell.tsx:35: { name: "Emergency", href: "/staff/emergency", icon: ShieldAlert },
+frontend\src\components\AppShell.tsx:41: { name: "Staff", href: "/admin/staff", icon: Users },
+frontend\src\components\AppShell.tsx:50: const links = portal === "staff" ? staffLinks : portal === "admin" ? adminLinks : patientLinks;
+frontend\src\components\AppShell.tsx:51: const brand = portal === "patient" ? "TrustBridge Patient" : portal === "staff" ? "TrustBridge Clinical" : "TrustBridge Admin";
+frontend\src\components\AppShell.tsx:66: portal === "patient" ? "/patient/profile" : portal === "staff" ? "/staff" : "/admin";
+
+=== 4. key shared files: exist? last written? ===
+EXISTS   frontend\src\components\AppShell.tsx  11-11 01:19:26  (6228 bytes)
+MISSING  frontend\src\middleware.ts
+MISSING  frontend\middleware.ts
+EXISTS   frontend\src\lib\api.ts  11-11 01:20:35  (4009 bytes)
+EXISTS   frontend\src\lib\supabase.ts  11-09 00:52:32  (213 bytes)
+EXISTS   frontend\src\app\layout.tsx  11-09 00:03:24  (505 bytes)
+--- imports in staff\page.tsx ---
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+import { apiFetch } from "@/lib/api";
+import AppShell from "@/components/AppShell";
+--- staff\page.tsx lines 14-40 ---
+BrainCircuit,
+} from "lucide-react";
+import { apiFetch } from "@/lib/api";
+import AppShell from "@/components/AppShell";
+
+export default function StaffDashboardPage() {
+const [data, setData] = useState<any>(null);
+const [loading, setLoading] = useState(true);
+
+useEffect(() => {
+apiFetch<any>("/staff/dashboard")
+.then(setData)
+.catch(() => {})
+.finally(() => setLoading(false));
+}, []);
+
+if (loading) return <div className="p-8">Loading...</div>;
+if (!data) return <div className="p-8 text-red-500">Failed to load data.</div>;
+
+return (
+<AppShell portal="staff">
+<div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+<div>
+<h1 className="text-2xl font-bold">Department Dashboard</h1>
+<p className="text-gray-500 dark:text-gray-400 mt-1">
+Welcome back, {data.stats.role}.
+</p>
+
+=== 5. backend: everything that mentions staff ===
+backend\src\routes\accessRequests.ts:18: // - For STAFF: only requests they created
+backend\src\routes\accessRequests.ts:54: // POST /v1/access-requests  — staff creates a request
+backend\src\routes\appointments.ts:20: staff: {
+backend\src\routes\appointments.ts:40: const { patientId, staffId, scheduledAt, durationMins, reason } = req.body;
+backend\src\routes\appointments.ts:42: if (!patientId || !staffId || !scheduledAt) {
+backend\src\routes\appointments.ts:47: const [patient, staff] = await Promise.all([
+backend\src\routes\appointments.ts:49: prisma.membership.findFirst({ where: { id: staffId, tenantId } }),
+backend\src\routes\appointments.ts:51: if (!patient || !staff) {
+backend\src\routes\appointments.ts:52: res.status(404).json({ error: 'patient_or_staff_not_found_in_tenant' });
+backend\src\routes\appointments.ts:60: staffId,
+backend\src\routes\appointments.ts:71: payload: { patientId, staffId, scheduledAt },
+backend\src\routes\emergency.ts:46: tenantId, patientId, staffMemberId: userId,
+backend\src\routes\emergency.ts:56: tenantId, patientId, staffMemberId: userId,
+backend\src\routes\emergency.ts:73: message: 'A staff member used emergency break-glass access to your record. An audit trail has been created for review.',
+backend\src\routes\emergency.ts:97: where.staffMemberId = me.userId;
+backend\src\routes\emergency.ts:122: const isOwner = grant.staffMemberId === userId;
+backend\src\routes\representatives.ts:328: await notifyPatient({ tenantId, patientId: rep.patientId, type: 'representative.verified', title: 'Representative verified', message: 'A representative you added has been...
+backend\src\routes\staff.ts:6: export const staffRouter = Router();
+backend\src\routes\staff.ts:8: // GET /v1/staff - list memberships (staff) for current tenant
+backend\src\routes\staff.ts:9: staffRouter.get('/', async (req, res, next) => {
+backend\src\routes\staff.ts:41: // GET /v1/staff/departments - list departments for current tenant
+backend\src\routes\staff.ts:42: staffRouter.get('/departments', async (_req, res, next) => {
+backend\src\routes\staff.ts:55: // PATCH /v1/staff/:membershipId - update role, department, employment status
+backend\src\routes\staff.ts:56: staffRouter.patch('/:membershipId', async (req, res, next) => {
+backend\src\routes\staff.ts:85: action: 'staff.update',
+backend\src\routes\staffDashboard.ts:6: export const staffDashboardRouter = Router();
+backend\src\routes\staffDashboard.ts:8: staffDashboardRouter.get('/', async (req, res, next) => {
+backend\src\routes\staffDashboard.ts:35: const announcements = await prisma.staffAnnouncement.findMany({
+backend\src\services\policyEngine.ts:9: * Evaluates whether a staff member may access a specific patient record.
+backend\src\services\policyEngine.ts:14: * 2. STAFF (clinicians) require an active AccessGrant for this patient,
+backend\src\server.ts:18: import { staffRouter } from './routes/staff';
+backend\src\server.ts:29: import { staffDashboardRouter } from './routes/staffDashboard';
+backend\src\server.ts:88: v1.use('/staff', staffRouter);
+backend\src\server.ts:98: v1.use('/staff/dashboard', staffDashboardRouter);
+backend\src\server.ts:100: v1.use('/staff/ai-risk', aiRiskRouter);
+
+=== 6. git ===
+--- uncommitted changes ---
+ M backend/src/middleware/tenantMiddleware.ts
+ M backend/src/routes/staffDashboard.ts
+ M backend/src/server.ts
+ M frontend/src/app/login/page.tsx
+ M frontend/src/components/AppShell.tsx
+ M frontend/src/lib/api.ts
+?? backend/src/middleware/tenantMiddleware.ts.bak
+?? backend/src/routes/staffDashboard.ts.bak
+?? frontend/src/lib/api.ts.bak
+--- last 6 commits ---
+0526578 11-11 01:06 Fix feature regressions and validation issues
+7ca9bcd 11-10 18:46 chore: session tracker tests and config
+3ee00cd 11-10 18:42 feat: compliance centre - DPA 2019 self-assessment with audit evidence
+41e4cab 11-10 18:37 feat: staff dashboard (role-aware) + emergency break-glass UI + compliance schema
+901b145 11-10 13:30 feat: emergency break-glass access + JWT auth + documents working end-to-end
+9bc3eb9 11-10 11:41 test: Phase 7 - notification endpoints + test-mode auth fallback

@@ -1,0 +1,396 @@
+﻿ backend/src/middleware/auth.ts             |  71 +++++++----------
+ backend/src/middleware/tenantMiddleware.ts |  53 +++++++++++--
+ backend/src/routes/staffDashboard.ts       |  63 +++++++++-------
+ backend/src/server.ts                      |  38 +++++++++-
+ frontend/src/app/login/page.tsx            |  44 +++++------
+ frontend/src/app/staff/page.tsx            |   5 +-
+ frontend/src/components/AppShell.tsx       |  41 ++++++++--
+ frontend/src/lib/api.ts                    | 117 ++++++++---------------------
+ 8 files changed, 235 insertions(+), 197 deletions(-)
+diff --git a/backend/src/middleware/tenantMiddleware.ts b/backend/src/middleware/tenantMiddleware.ts
+index cef5b45..dbb795a 100644
+--- a/backend/src/middleware/tenantMiddleware.ts
++++ b/backend/src/middleware/tenantMiddleware.ts
+@@ -1,15 +1,52 @@
+ import type { NextFunction, Request, Response } from 'express';
+ import { randomUUID } from 'node:crypto';
+ import { tenantStore } from './tenantContext';
++import { prisma } from '../models/prisma'; // Adjust path if prisma client is elsewhere
++
+ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+-export function tenantMiddleware(req: Request, res: Response, next: NextFunction) {
++
++export async function tenantMiddleware(req: Request, res: Response, next: NextFunction) {
+   const tenantId = req.header('x-tenant-id');
+   const userId = req.header('x-user-id');
+-  const role = req.header('x-role');
+-  if (!tenantId || !UUID_RE.test(tenantId)) { res.status(401).json({ error: 'missing_or_malformed_tenant_id' }); return; }
+-  if (!userId) { res.status(401).json({ error: 'missing_user_id' }); return; }
+-  if (!role) { res.status(401).json({ error: 'missing_role' }); return; }
+-  const correlationId = req.header('x-correlation-id') ?? randomUUID();
+-  res.setHeader('x-correlation-id', correlationId);
+-  tenantStore.run({ tenantId, userId, role, correlationId }, () => next());
++
++  if (!tenantId || !UUID_RE.test(tenantId)) { 
++    res.status(401).json({ error: 'missing_or_malformed_tenant_id' }); 
++    return; 
++  }
++  
++  if (!userId) { 
++    res.status(401).json({ error: 'missing_user_id' }); 
++    return; 
++  }
++
++  try {
++    // Securely look up the user's role in the database for this tenant
++    const membership = await prisma.membership.findUnique({
++      where: {
++        tenantId_userId: { tenantId, userId },
++      },
++      select: { role: true },
++    });
++
++    if (!membership) {
++      res.status(403).json({ error: 'no_membership_for_tenant' });
++      return;
++    }
++
++    const correlationId = req.header('x-correlation-id') ?? randomUUID();
++    res.setHeader('x-correlation-id', correlationId);
++
++    // Run the request within the context, using the role from the DB
++    tenantStore.run(
++      { tenantId, userId, role: membership.role, correlationId }, 
++      () => {
++        // Ensure downstream code that still looks at headers sees the verified role
++        req.headers['x-role'] = membership.role;
++        next();
++      }
++    );
++  } catch (error: any) {
++    req.log?.error({ err: error.message }, 'tenantMiddleware: db error');
++    res.status(500).json({ error: 'internal_error' });
++  }
+ }
+\ No newline at end of file
+diff --git a/backend/src/routes/staffDashboard.ts b/backend/src/routes/staffDashboard.ts
+index d81656c..462d272 100644
+--- a/backend/src/routes/staffDashboard.ts
++++ b/backend/src/routes/staffDashboard.ts
+@@ -1,53 +1,58 @@
+ import { Router } from 'express';
+ import { currentTenant } from '../middleware/tenantContext';
+ import { callerMembership } from '../services/representation';
+-import { Pool } from 'pg';
++import { prisma } from '../models/prisma';
+ 
+ export const staffDashboardRouter = Router();
+ 
+-const pool = new Pool({
+-  connectionString: process.env.DATABASE_URL,
+-  ssl: { rejectUnauthorized: false }
+-});
+-
+ staffDashboardRouter.get('/', async (req, res, next) => {
+   try {
+     const { tenantId } = currentTenant();
+     const me = await callerMembership();
+-    if (!me) { res.status(403).json({ error: 'no_membership' }); return; }
++    if (!me) { 
++      res.status(403).json({ error: 'no_membership' }); 
++      return; 
++    }
+ 
+-    // 1. Emergency reviews (unreviewed)
+-    const emergency = await pool.query(
+-      `SELECT COUNT(*)::int as count FROM public.emergency_access 
+-       WHERE "tenantId" = $1 AND "reviewedAt" IS NULL AND "validUntil" > now()`,
+-      [tenantId]
+-    );
++    const emergencyCount = await prisma.emergencyAccess.count({
++      where: {
++        tenantId,
++        reviewedAt: null,
++        validUntil: { gt: new Date() },
++      },
++    });
+ 
+-    // 2. Pending rep requests
+     let pendingReps = 0;
+     if (['HOSPITAL_ADMIN', 'PRIVACY_OFFICER'].includes(me.role as string)) {
+-      const reps = await pool.query(
+-        `SELECT COUNT(*)::int as count FROM public.representatives 
+-         WHERE "tenantId" = $1 AND "verificationStatus" = 'PENDING'`,
+-        [tenantId]
+-      );
+-      pendingReps = reps.rows[0].count;
++      pendingReps = await prisma.representative.count({
++        where: {
++          tenantId,
++          verificationStatus: 'PENDING',
++        },
++      });
+     }
+ 
+-    // 3. Announcements
+-    const ann = await pool.query(
+-      `SELECT id, title, content, "createdAt" FROM public.staff_announcements 
+-       WHERE "tenantId" = $1 ORDER BY "createdAt" DESC LIMIT 5`,
+-      [tenantId]
+-    );
++    const announcements = await prisma.staffAnnouncement.findMany({
++      where: { tenantId },
++      orderBy: { createdAt: 'desc' },
++      take: 5,
++      select: {
++        id: true,
++        title: true,
++        content: true,
++        createdAt: true,
++      },
++    });
+ 
+     res.json({
+       stats: {
+-        pendingEmergencyReviews: emergency.rows[0].count,
++        pendingEmergencyReviews: emergencyCount,
+         pendingRepresentativeRequests: pendingReps,
+         role: me.role,
+       },
+-      announcements: ann.rows,
++      announcements,
+     });
+-  } catch (err) { next(err); }
++  } catch (err) { 
++    next(err); 
++  }
+ });
+\ No newline at end of file
+diff --git a/frontend/src/app/login/page.tsx b/frontend/src/app/login/page.tsx
+index 1c06217..ffb099b 100644
+--- a/frontend/src/app/login/page.tsx
++++ b/frontend/src/app/login/page.tsx
+@@ -4,6 +4,7 @@ import { useState } from "react";
+ import { useRouter } from "next/navigation";
+ import { ShieldCheck, ArrowRight } from "lucide-react";
+ import { createClient } from "@/lib/supabase";
++import { clearApiCache, getApiContext } from "@/lib/api";
+ 
+ export default function LoginPage() {
+   const router = useRouter();
+@@ -17,31 +18,32 @@ export default function LoginPage() {
+     e.preventDefault();
+     setLoading(true);
+     setError("");
++    clearApiCache();
+ 
+-    const { error: authError } = await supabase.auth.signInWithPassword({
+-      email,
+-      password,
+-    });
++    try {
++      const { error: authError } = await supabase.auth.signInWithPassword({
++        email,
++        password,
++      });
++      if (authError) throw authError;
+ 
+-    if (authError) {
+-      setError(authError.message);
++      const { role } = await getApiContext();
++      if (role === "PATIENT") {
++        router.replace("/patient");
++      } else if (role === "STAFF" || role === "NURSE") {
++        router.replace("/staff");
++      } else if (["HOSPITAL_ADMIN", "PRIVACY_OFFICER", "SECURITY_INVESTIGATOR", "SUPER_ADMIN"].includes(role)) {
++        router.replace("/admin");
++      } else {
++        throw new Error("Your account does not have a supported portal role.");
++      }
++      router.refresh();
++    } catch (loginError) {
++      await supabase.auth.signOut();
++      clearApiCache();
++      setError(loginError instanceof Error ? loginError.message : "Unable to sign in.");
+       setLoading(false);
+-      return;
+     }
+-
+-        // Fetch the user's role from the database to decide where to redirect
+-    const { data: membership } = await supabase
+-      .from('memberships')
+-      .select('role')
+-      .eq('userId', (await supabase.auth.getUser()).data.user?.id)
+-      .single();
+-
+-    if (membership?.role === 'STAFF' || membership?.role === 'NURSE') {
+-      router.push("/staff");
+-    } else {
+-      router.push("/admin");
+-    }
+-    router.refresh();
+   };
+ 
+   return (
+diff --git a/frontend/src/lib/api.ts b/frontend/src/lib/api.ts
+index e402198..74ae03d 100644
+--- a/frontend/src/lib/api.ts
++++ b/frontend/src/lib/api.ts
+@@ -1,77 +1,47 @@
+ import { createClient } from "./supabase";
+ 
+-const API_URL = "http://127.0.0.1:4000/v1";
+-
+-type Context = {
+-  userId: string;
+-  tenantId: string;
+-  role: string;
+-};
++const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:4000/v1";
++const DEV_TENANT_ID = "ad0a4777-cee4-4e69-894a-410648d8b22a";
+ 
++type Context = { userId: string; tenantId: string; role: string; };
+ let cachedContext: Context | null = null;
+ 
+-async function getContext(): Promise<Context> {
++export async function getApiContext(): Promise<Context> {
+   if (cachedContext) return cachedContext;
++  const { data, error } = await createClient().auth.getSession();
++  const token = data.session?.access_token;
++  if (error || !token) throw new Error("Not authenticated");
++
++  const response = await fetch(`${API_URL}/me/context`, {
++    headers: { 
++      Authorization: `Bearer ${token}`,
++      "x-tenant-id": DEV_TENANT_ID 
++    },
++  });
++  
++  const context = await response.json().catch(() => ({}));
++  if (!response.ok) throw new Error(context.error ?? `Unable to load context (${response.status})`);
+ 
+-  const supabase = createClient();
+-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+-  if (authError || !user) throw new Error("Not authenticated");
+-
+-  // Fetch the user's first membership (Phase 3: single-tenant per user)
+-  const { data: membership, error: memError } = await supabase
+-    .from("memberships")
+-    .select("tenantId, role")
+-    .eq("userId", user.id)
+-    .eq("active", true)
+-    .single();
+-
+-  if (memError || !membership) throw new Error("No active membership found");
+-
+-  cachedContext = {
+-    userId: user.id,
+-    tenantId: membership.tenantId,
+-    role: membership.role,
+-  };
++  cachedContext = { userId: context.userId, tenantId: context.tenantId, role: context.role };
+   return cachedContext;
+ }
+ 
+-export function clearApiCache() {
+-  cachedContext = null;
+-}
+-
+-// ---------------------------------------------------------------------------
+-// Acting-for support.
+-// A representative can open a patient's records by setting `actingFor` in
+-// localStorage. The value is the *patient id* (not the grant id). Every
+-// request automatically carries `x-acting-for` when it is set. The server
+-// still enforces the scope check; this header alone grants nothing.
+-// ---------------------------------------------------------------------------
++export function clearApiCache() { cachedContext = null; }
+ const ACTING_FOR_KEY = "actingFor";
++export function getActingFor() { if (typeof window === "undefined") return null; try { return localStorage.getItem(ACTING_FOR_KEY); } catch { return null; } }
++export function setActingFor(id: string | null) { if (typeof window === "undefined") return; try { if (id) localStorage.setItem(ACTING_FOR_KEY, id); else localStorage.removeItem(ACTING_FOR_KEY); } catch {} }
+ 
+-export function getActingFor(): string | null {
+-  if (typeof window === "undefined") return null;
+-  try { return localStorage.getItem(ACTING_FOR_KEY); } catch { return null; }
+-}
+-
+-export function setActingFor(patientId: string | null): void {
+-  if (typeof window === "undefined") return;
+-  try {
+-    if (patientId) localStorage.setItem(ACTING_FOR_KEY, patientId);
+-    else localStorage.removeItem(ACTING_FOR_KEY);
+-  } catch { /* ignore quota / private mode */ }
+-}
+-
+-// ---------------------------------------------------------------------------
+ export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+-  const ctx = await getContext();
+-
++  const ctx = await getApiContext();
+   const session = await createClient().auth.getSession();
+   const token = session?.data?.session?.access_token;
++  if (!token) throw new Error("Not authenticated");
++  
+   const res = await fetch(`${API_URL}${path}`, {
+     ...options,
+     headers: {
+       "Content-Type": "application/json",
+-      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
++      "Authorization": `Bearer ${token}`,
+       "x-tenant-id": ctx.tenantId,
+       "x-user-id": ctx.userId,
+       "x-role": ctx.role,
+@@ -79,45 +49,22 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
+     },
+   });
+ 
+-  if (!res.ok) {
+-    const body = await res.json().catch(() => ({}));
+-    throw new Error(body.error || `API Error: ${res.status}`);
+-  }
+-
++  if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || `API Error: ${res.status}`); }
+   return res.json();
+ }
+ 
+-// --- Sprint A helpers: multipart upload and binary download ---
+ async function rawFetch(path: string, options: RequestInit = {}): Promise<Response> {
+-  const ctx = await getContext();
++  const ctx = await getApiContext();
+   const session = await createClient().auth.getSession();
+   const token = session?.data?.session?.access_token;
++  if (!token) throw new Error("Not authenticated");
+   const res = await fetch(`${API_URL}${path}`, {
+     ...options,
+-    headers: {
+-      "x-tenant-id": ctx.tenantId,
+-      "x-user-id": ctx.userId,
+-      "x-role": ctx.role,
+-      ...options.headers,
+-    },
++    headers: { Authorization: `Bearer ${token}`, "x-tenant-id": ctx.tenantId, "x-user-id": ctx.userId, "x-role": ctx.role, ...options.headers },
+   });
+-
+-  if (!res.ok) {
+-    const body = await res.json().catch(() => ({}));
+-    const err: any = new Error(body.error || `API Error: ${res.status}`);
+-    err.status = res.status;
+-    throw err;
+-  }
++  if (!res.ok) { const b = await res.json().catch(() => ({})); const e: any = new Error(b.error || `API Error: ${res.status}`); e.status = res.status; throw e; }
+   return res;
+ }
+ 
+-export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
+-  // No Content-Type here: the browser sets the multipart boundary itself
+-  const res = await rawFetch(path, { method: "POST", body: form });
+-  return res.json();
+-}
+-
+-export async function apiBlob(path: string): Promise<Blob> {
+-  const res = await rawFetch(path);
+-  return res.blob();
+-}
+\ No newline at end of file
++export async function apiUpload<T>(path: string, form: FormData): Promise<T> { const res = await rawFetch(path, { method: "POST", body: form }); return res.json(); }
++export async function apiBlob(path: string): Promise<Blob> { const res = await rawFetch(path); return res.blob(); }
+\ No newline at end of file

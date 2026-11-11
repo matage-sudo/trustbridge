@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../models/prisma';
 import { currentTenant } from '../middleware/tenantContext';
 import { writeAudit } from '../services/audit';
+import { createClient } from '@supabase/supabase-js';
 
 export const staffRouter = Router();
 
@@ -47,6 +48,88 @@ staffRouter.get('/departments', async (_req, res, next) => {
       orderBy: { name: 'asc' },
     });
     res.json({ items: departments });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /v1/staff/create-account - securely create a new user in Supabase + Prisma
+staffRouter.post('/create-account', async (req, res, next) => {
+  try {
+    const { tenantId } = currentTenant();
+    const { email, password, displayName, role } = req.body;
+
+    if (!email || !password) {
+      res.status(400).json({ error: 'email_and_password_required' });
+      return;
+    }
+
+    // 1. Create in Supabase using the Admin Service Role Key
+    const supabaseAdmin = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+
+    if (authError) {
+      res.status(400).json({ error: authError.message });
+      return;
+    }
+
+    // 2. Create in Prisma Database
+    const identity = await prisma.userIdentity.create({
+      data: {
+        email,
+        displayName: displayName || email.split('@')[0],
+        memberships: {
+          create: {
+            tenantId,
+            role: role || 'STAFF',
+          }
+        }
+      }
+    });
+
+    await writeAudit({
+      action: 'staff.create',
+      resourceType: 'membership',
+      resourceId: identity.id,
+      payload: { email, role: role || 'STAFF' },
+    });
+
+    res.json({ success: true, userId: identity.id });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /v1/staff/reset-password - trigger a Supabase password reset email
+staffRouter.post('/reset-password', async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) { 
+      res.status(400).json({ error: 'email_required' }); 
+      return; 
+    }
+
+    const supabaseAdmin = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email);
+
+    if (error) { 
+      res.status(400).json({ error: error.message }); 
+      return; 
+    }
+    
+    res.json({ success: true, message: 'Password reset email sent.' });
   } catch (err) {
     next(err);
   }

@@ -19,16 +19,17 @@ import AppShell from "@/components/AppShell";
 export default function StaffDashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch<any>("/staff/dashboard")
       .then(setData)
-      .catch(() => {})
+      .catch((err: any) => { console.error("API ERROR:", err); setErrorMsg(err?.message || "Unknown error"); })
       .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <div className="p-8">Loading...</div>;
-  if (!data) return <div className="p-8 text-red-500">Failed to load data.</div>;
+  if (!data) return <div className="p-8 text-red-500">Failed to load data: {errorMsg}</div>;
 
   return (
     <AppShell portal="staff">

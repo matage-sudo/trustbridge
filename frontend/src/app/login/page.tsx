@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { clearApiCache, getApiContext } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,31 +18,35 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
+    clearApiCache();
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (authError) throw authError;
 
-    if (authError) {
-      setError(authError.message);
+      // Fetch the role from our secure backend context
+      const { role } = await getApiContext();
+      
+      if (role === "PATIENT") {
+        router.replace("/patient");
+      } else if (role === "STAFF" || role === "NURSE") {
+        router.replace("/staff");
+      } else if (["HOSPITAL_ADMIN", "PRIVACY_OFFICER", "SECURITY_INVESTIGATOR", "SUPER_ADMIN"].includes(role)) {
+        router.replace("/admin");
+      } else {
+        throw new Error("Your account does not have a supported portal role.");
+      }
+      
+      router.refresh();
+    } catch (loginError) {
+      await supabase.auth.signOut();
+      clearApiCache();
+      setError(loginError instanceof Error ? loginError.message : "Unable to sign in.");
       setLoading(false);
-      return;
     }
-
-        // Fetch the user's role from the database to decide where to redirect
-    const { data: membership } = await supabase
-      .from('memberships')
-      .select('role')
-      .eq('userId', (await supabase.auth.getUser()).data.user?.id)
-      .single();
-
-    if (membership?.role === 'STAFF' || membership?.role === 'NURSE') {
-      router.push("/staff");
-    } else {
-      router.push("/admin");
-    }
-    router.refresh();
   };
 
   return (
@@ -70,7 +75,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-4 py-2.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              placeholder="alice@example.test"
+              placeholder="admin@example.com"
             />
           </div>
           <div>
