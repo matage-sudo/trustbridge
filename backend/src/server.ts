@@ -44,7 +44,7 @@ app.disable('x-powered-by');
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
   origin: (origin, callback) => {
-    const allowedOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000'];
+    const allowedOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000', 'https://trustbridgeke-iota.vercel.app', ...(process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : [])];
     const localDevelopmentOrigin =
       env.NODE_ENV !== 'production' &&
       !!origin &&
