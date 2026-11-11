@@ -143,8 +143,10 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   res.status(500).json({ error: String((err as Error)?.message ?? err) });
 });
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   app.listen(env.PORT, '0.0.0.0', () => {
     log.info(`TrustBridge API listening on http://localhost:${env.PORT}/v1`);
   });
 }
+
+export default app;
