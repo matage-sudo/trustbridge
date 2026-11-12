@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ShieldCheck, CheckCircle2, AlertCircle, Loader2, ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase";
@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/Input";
 
 type Phase = "checking" | "ready" | "invalid" | "success";
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tokenHash = searchParams.get("token_hash");
   const [phase, setPhase] = useState<Phase>("checking");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -21,34 +23,61 @@ export default function ResetPasswordPage() {
     const supabase = createClient();
     let settled = false;
 
+    const handleSuccess = () => { if (!settled) { settled = true; setPhase("ready"); } };
+    const handleError = () => { if (!settled) { settled = true; setPhase("invalid"); } };
+
+    // 1. Check for token_hash in URL (Our new secure flow)
+    if (tokenHash) {
+      supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+        .then(({ error }) => error ? handleError() : handleSuccess());
+      return;
+    }
+
+    // 2. Fallback: Check for hash fragment (Old magic link flow)
+    const hash = window.location.hash.substring(1);
+    const hashParams = new URLSearchParams(hash);
+    const accessToken = hashParams.get("access_token");
+    const refreshToken = hashParams.get("refresh_token");
+
+    if (accessToken && refreshToken) {
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(({ error }) => error ? handleError() : handleSuccess());
+      return;
+    }
+
+    // 3. Fallback: Check for existing session (If Supabase auto-parsed the URL)
     supabase.auth.getSession().then(({ data }) => {
-      if (settled) return;
-      if (data.session) { settled = true; setPhase("ready"); }
+      if (data.session) handleSuccess();
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (settled) return;
-      if (event === "PASSWORD_RECOVERY" || session) { settled = true; setPhase("ready"); }
+      if (event === "PASSWORD_RECOVERY" || session) handleSuccess();
     });
 
-    const t = setTimeout(() => { if (!settled) { settled = true; setPhase("invalid"); } }, 2500);
+    const t = setTimeout(() => { if (!settled) handleError(); }, 2500);
 
     return () => { sub.subscription.unsubscribe(); clearTimeout(t); };
-  }, []);
+  }, [tokenHash]);
 
   const submit = async (e: React.FormEvent) => {
-    e.preventDefault(); setError("");
+    e.preventDefault();
+    setError("");
     if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
     if (password !== confirm) { setError("Passwords do not match."); return; }
+    
     setLoading(true);
     try {
-      const { error: updErr } = await createClient().auth.updateUser({ password });
+      const supabase = createClient();
+      const { error: updErr } = await supabase.auth.updateUser({ password });
       if (updErr) throw updErr;
+
       setPhase("success");
       setTimeout(() => router.replace("/login"), 2000);
     } catch (err: any) {
       setError(err?.message ?? "Failed to update password.");
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -112,5 +141,17 @@ export default function ResetPasswordPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-4">
+        <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+      </div>
+    }>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

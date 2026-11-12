@@ -1,17 +1,7 @@
-import { Resend } from 'resend';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const EMAIL_FROM = process.env.EMAIL_FROM || 'TrustBridge <onboarding@resend.dev>';
 const APP_NAME = 'TrustBridge';
-
-let _resend: Resend | null = null;
-function resendClient(): Resend | null {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) return null;
-  if (!_resend) _resend = new Resend(key);
-  return _resend;
-}
 
 let _supabaseAdmin: SupabaseClient | null = null;
 function supabaseAdmin(): SupabaseClient {
@@ -38,6 +28,29 @@ function wrapHtml(headline: string, blurb: string, cta: string, url: string, foo
 </div></body></html>`;
 }
 
+async function sendViaKeplars(to: string, subject: string, html: string) {
+  const KEPLARS_API_KEY = process.env.KEPLARS_API_KEY;
+  if (!KEPLARS_API_KEY) {
+    console.warn('[email] KEPLARS_API_KEY not set — email skipped. Link:', html.match(/href="([^"]+)"/)?.[1]);
+    return false;
+  }
+
+  const res = await fetch('https://api.keplars.com/api/v1/send-email/instant', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${KEPLARS_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ to: [to], subject, body: html }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Keplars API error: ${err.error?.message || err.message || res.statusText}`);
+  }
+  return true;
+}
+
 export type InviteResult = { userId: string | null; emailSent: boolean; skipped?: string };
 
 export async function sendInviteEmail(email: string, kind: 'patient' | 'staff' = 'staff'): Promise<InviteResult> {
@@ -48,53 +61,42 @@ export async function sendInviteEmail(email: string, kind: 'patient' | 'staff' =
   if (linkRes.error && /already|exist/i.test(linkRes.error.message)) {
     linkRes = await admin.auth.admin.generateLink({ type: 'recovery', email, options: { redirectTo } });
   }
-  if (linkRes.error || !linkRes.data?.properties?.action_link) {
-    throw new Error(`generateLink failed: ${linkRes.error?.message ?? 'no_link'}`);
+  if (linkRes.error || !linkRes.data?.properties?.hashed_token) {
+    throw new Error(`generateLink failed: ${linkRes.error?.message ?? 'no_token'}`);
   }
-  const url = linkRes.data.properties.action_link;
+  
+  // Build the URL explicitly using the hashed_token
+  const url = `${FRONTEND_URL}/reset-password?token_hash=${linkRes.data.properties.hashed_token}&type=recovery`;
   const userId = linkRes.data.user?.id ?? null;
-
-  const resend = resendClient();
-  if (!resend) {
-    console.warn('[email] RESEND_API_KEY not set — invite skipped. Link:', url);
-    return { userId, emailSent: false, skipped: 'no_resend_api_key' };
-  }
 
   const blurb = kind === 'patient'
     ? 'Your hospital has created a secure patient portal account for you. Click below to set your password and access your medical records.'
     : 'Your hospital has created a secure TrustBridge account for you. Click below to set your password and access your clinical portal.';
 
-  const sendRes = await resend.emails.send({
-    from: EMAIL_FROM, to: email,
-    subject: `Activate your ${APP_NAME} account`,
-    html: wrapHtml('Welcome to TrustBridge — Activate Your Account', blurb, 'Set My Password', url,
-      'If you didn’t expect this email, you can safely ignore it. The link expires in 1 hour.'),
-  });
-  if ((sendRes as any).error) throw new Error(`Resend send failed: ${(sendRes as any).error.message}`);
-  return { userId, emailSent: true };
+  const html = wrapHtml('Welcome to TrustBridge — Activate Your Account', blurb, 'Set My Password', url,
+    'If you didn’t expect this email, you can safely ignore it. The link expires in 12 hours.');
+
+  const sent = await sendViaKeplars(email, `Activate your ${APP_NAME} account`, html);
+  return { userId, emailSent: sent };
 }
 
 export async function sendResetEmail(email: string): Promise<{ emailSent: boolean; skipped?: string }> {
   const admin = supabaseAdmin();
   const redirectTo = `${FRONTEND_URL}/reset-password`;
   const linkRes = await admin.auth.admin.generateLink({ type: 'recovery', email, options: { redirectTo } });
-  if (linkRes.error || !linkRes.data?.properties?.action_link) {
+  
+  if (linkRes.error || !linkRes.data?.properties?.hashed_token) {
     return { emailSent: false, skipped: 'user_not_found_or_link_failed' };
   }
-  const url = linkRes.data.properties.action_link;
-  const resend = resendClient();
-  if (!resend) {
-    console.warn('[email] RESEND_API_KEY not set — reset skipped. Link:', url);
-    return { emailSent: false, skipped: 'no_resend_api_key' };
-  }
-  const sendRes = await resend.emails.send({
-    from: EMAIL_FROM, to: email,
-    subject: `Reset your ${APP_NAME} password`,
-    html: wrapHtml(`Reset your ${APP_NAME} password`,
-      'We received a request to reset your password. Click below to choose a new password.',
-      'Reset Password', url,
-      "If you didn't request this, ignore this email — your password won't change. The link expires in 1 hour."),
-  });
-  if ((sendRes as any).error) throw new Error(`Resend send failed: ${(sendRes as any).error.message}`);
-  return { emailSent: true };
+  
+  // Build the URL explicitly using the hashed_token
+  const url = `${FRONTEND_URL}/reset-password?token_hash=${linkRes.data.properties.hashed_token}&type=recovery`;
+
+  const html = wrapHtml(`Reset your ${APP_NAME} password`,
+    'We received a request to reset your password. Click below to choose a new password.',
+    'Reset Password', url,
+    'If you didn\'t request this, ignore this email — your password won\'t change. The link expires in 12 hours.');
+
+  const sent = await sendViaKeplars(email, `Reset your ${APP_NAME} password`, html);
+  return { emailSent: sent };
 }
