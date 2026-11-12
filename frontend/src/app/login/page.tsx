@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, ArrowRight, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
@@ -77,6 +78,9 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
             />
+          </div>
+          <div className="text-right -mt-2">
+            <Link href="/forgot-password" className="text-sm text-blue-600 hover:underline">Forgot password?</Link>
           </div>
           <Button type="submit" className="w-full mt-2" isLoading={loading}>
             Sign in {!loading && <ArrowRight className="h-4 w-4 ml-2" />}

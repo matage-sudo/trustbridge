@@ -2,29 +2,21 @@ import { Router } from 'express';
 import { prisma } from '../models/prisma';
 import { currentTenant } from '../middleware/tenantContext';
 import { writeAudit } from '../services/audit';
-import { createClient } from '@supabase/supabase-js';
+import { sendInviteEmail, sendResetEmail } from '../services/email';
 
 export const staffRouter = Router();
 
-// GET /v1/staff - list memberships (staff) for current tenant
 staffRouter.get('/', async (req, res, next) => {
   try {
     const { tenantId } = currentTenant();
     const search = req.query.search as string | undefined;
-
     const memberships = await prisma.membership.findMany({
       where: {
         tenantId,
-        ...(search
-          ? {
-              user: {
-                OR: [
-                  { email: { contains: search, mode: 'insensitive' } },
-                  { displayName: { contains: search, mode: 'insensitive' } },
-                ],
-              },
-            }
-          : {}),
+        ...(search ? { user: { OR: [
+          { email: { contains: search, mode: 'insensitive' } },
+          { displayName: { contains: search, mode: 'insensitive' } },
+        ] } } : {}),
       },
       include: {
         user: { select: { id: true, email: true, displayName: true } },
@@ -32,125 +24,73 @@ staffRouter.get('/', async (req, res, next) => {
       },
       orderBy: { createdAt: 'asc' },
     });
-
     res.json({ items: memberships });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
-// GET /v1/staff/departments - list departments for current tenant
 staffRouter.get('/departments', async (_req, res, next) => {
   try {
     const { tenantId } = currentTenant();
-    const departments = await prisma.department.findMany({
-      where: { tenantId },
-      orderBy: { name: 'asc' },
-    });
+    const departments = await prisma.department.findMany({ where: { tenantId }, orderBy: { name: 'asc' } });
     res.json({ items: departments });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
-// POST /v1/staff/create-account - securely create a new user in Supabase + Prisma
 staffRouter.post('/create-account', async (req, res, next) => {
   try {
     const { tenantId } = currentTenant();
-    const { email, password, displayName, role } = req.body;
+    const { email, displayName, role } = req.body;
+    if (!email) { res.status(400).json({ error: 'email_required' }); return; }
+    const normalizedEmail = String(email).trim().toLowerCase();
 
-    if (!email || !password) {
-      res.status(400).json({ error: 'email_and_password_required' });
+    let authUserId: string | null = null;
+    let emailSent = false;
+    let inviteError: string | null = null;
+
+    try {
+      const invite = await sendInviteEmail(normalizedEmail, 'staff');
+      authUserId = invite.userId;
+      emailSent = invite.emailSent;
+    } catch (e: any) { inviteError = e?.message ?? 'invite_failed'; }
+
+    if (!authUserId) {
+      res.status(400).json({ error: 'auth_invite_failed', detail: inviteError });
       return;
     }
 
-    // 1. Create in Supabase using the Admin Service Role Key
-    const supabaseAdmin = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
+    const identity = await prisma.userIdentity.upsert({
+      where: { id: authUserId },
+      update: { email: normalizedEmail, displayName: displayName || normalizedEmail.split('@')[0] },
+      create: { id: authUserId, email: normalizedEmail, displayName: displayName || normalizedEmail.split('@')[0] },
     });
 
-    if (authError) {
-      res.status(400).json({ error: authError.message });
-      return;
+    const existing = await prisma.membership.findFirst({ where: { tenantId, userId: authUserId } });
+    if (!existing) {
+      await prisma.membership.create({ data: { tenantId, userId: authUserId, role: role || 'STAFF' } });
     }
 
-    // 2. Create in Prisma Database
-    const identity = await prisma.userIdentity.create({
-      data: {
-        email,
-        displayName: displayName || email.split('@')[0],
-        memberships: {
-          create: {
-            tenantId,
-            role: role || 'STAFF',
-          }
-        }
-      }
-    });
+    await writeAudit({ action: 'staff.create', resourceType: 'membership', resourceId: identity.id, payload: { email: normalizedEmail, role: role || 'STAFF', emailSent } });
 
-    await writeAudit({
-      action: 'staff.create',
-      resourceType: 'membership',
-      resourceId: identity.id,
-      payload: { email, role: role || 'STAFF' },
-    });
-
-    res.json({ success: true, userId: identity.id });
-  } catch (err) {
-    next(err);
-  }
+    res.status(201).json({ success: true, userId: identity.id, emailSent, inviteError });
+  } catch (err) { next(err); }
 });
 
-// POST /v1/staff/reset-password - trigger a Supabase password reset email
 staffRouter.post('/reset-password', async (req, res, next) => {
   try {
     const { email } = req.body;
-    if (!email) { 
-      res.status(400).json({ error: 'email_required' }); 
-      return; 
-    }
-
-    const supabaseAdmin = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email);
-
-    if (error) { 
-      res.status(400).json({ error: error.message }); 
-      return; 
-    }
-    
-    res.json({ success: true, message: 'Password reset email sent.' });
-  } catch (err) {
-    next(err);
-  }
+    if (!email) { res.status(400).json({ error: 'email_required' }); return; }
+    const result = await sendResetEmail(String(email).trim().toLowerCase());
+    res.json({ success: true, message: 'If an account with that email exists, a password reset link has been sent.', emailSent: result.emailSent });
+  } catch (err) { next(err); }
 });
 
-// PATCH /v1/staff/:membershipId - update role, department, employment status
 staffRouter.patch('/:membershipId', async (req, res, next) => {
   try {
     const { tenantId } = currentTenant();
     const { membershipId } = req.params;
     const { role, departmentId, employmentStatus } = req.body;
-
-    // Verify the membership belongs to this tenant
-    const existing = await prisma.membership.findFirst({
-      where: { id: membershipId, tenantId },
-    });
-    if (!existing) {
-      res.status(404).json({ error: 'membership_not_found' });
-      return;
-    }
-
+    const existing = await prisma.membership.findFirst({ where: { id: membershipId, tenantId } });
+    if (!existing) { res.status(404).json({ error: 'membership_not_found' }); return; }
     const updated = await prisma.membership.update({
       where: { id: membershipId },
       data: {
@@ -163,16 +103,7 @@ staffRouter.patch('/:membershipId', async (req, res, next) => {
         department: { select: { id: true, name: true } },
       },
     });
-
-    await writeAudit({
-      action: 'staff.update',
-      resourceType: 'membership',
-      resourceId: membershipId,
-      payload: { role, departmentId, employmentStatus },
-    });
-
+    await writeAudit({ action: 'staff.update', resourceType: 'membership', resourceId: membershipId, payload: { role, departmentId, employmentStatus } });
     res.json(updated);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });

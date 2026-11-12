@@ -21,7 +21,7 @@ export default function AdminStaffPage() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newEmail, setNewEmail] = useState(""); const [newName, setNewName] = useState("");
-  const [newPassword, setNewPassword] = useState(""); const [newRole, setNewRole] = useState("STAFF");
+  const [newRole, setNewRole] = useState("STAFF");
   const [actionLoading, setActionLoading] = useState(false); const [error, setError] = useState("");
 
   const fetchStaff = () => {
@@ -35,8 +35,8 @@ export default function AdminStaffPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setActionLoading(true); setError("");
     try {
-      await apiFetch("/staff/create-account", { method: "POST", body: JSON.stringify({ email: newEmail, password: newPassword, displayName: newName, role: newRole }) });
-      setIsModalOpen(false); setNewEmail(""); setNewName(""); setNewPassword(""); fetchStaff();
+      await apiFetch("/staff/create-account", { method: "POST", body: JSON.stringify({ email: newEmail, displayName: newName, role: newRole }) });
+      setIsModalOpen(false); setNewEmail(""); setNewName(""); fetchStaff();
     } catch (err: any) { setError(err.message || "Failed to create account"); } finally { setActionLoading(false); }
   };
 
@@ -102,7 +102,6 @@ export default function AdminStaffPage() {
               {error && <div className="text-sm text-red-600 bg-red-50 p-2 rounded flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> {error}</div>}
               <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Full Name</label><Input required value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Dr. Jane Doe" /></div>
               <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Email</label><Input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="jane@hospital.com" /></div>
-              <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Temp Password</label><Input type="text" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="min 6 chars" /></div>
               <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Role</label><select value={newRole} onChange={(e) => setNewRole(e.target.value)} className="w-full rounded-lg border border-slate-300 p-2 text-sm dark:bg-slate-900 dark:border-slate-700 dark:text-white">{Object.entries(ALLOWED_CREATE_ROLES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>

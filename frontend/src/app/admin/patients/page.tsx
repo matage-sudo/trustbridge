@@ -17,7 +17,7 @@ export default function AdminPatientsPage() {
   const [search, setSearch] = useState("");
   
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [form, setForm] = useState({ firstName: "", lastName: "", hospitalNumber: "", dateOfBirth: "" });
+  const [form, setForm] = useState({ firstName: "", lastName: "", hospitalNumber: "", dateOfBirth: "", email: "" });
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -33,7 +33,7 @@ export default function AdminPatientsPage() {
     e.preventDefault(); setActionLoading(true); setError("");
     try {
       await apiFetch("/patients", { method: "POST", body: JSON.stringify(form) });
-      setIsModalOpen(false); setForm({ firstName: "", lastName: "", hospitalNumber: "", dateOfBirth: "" }); fetchPatients();
+      setIsModalOpen(false); setForm({ firstName: "", lastName: "", hospitalNumber: "", dateOfBirth: "", email: "" }); fetchPatients();
     } catch (err: any) { setError(err.message || "Failed to create patient"); } finally { setActionLoading(false); }
   };
 
@@ -84,6 +84,7 @@ export default function AdminPatientsPage() {
               </div>
               <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Hospital Number (MRN)</label><Input required value={form.hospitalNumber} onChange={(e) => setForm({...form, hospitalNumber: e.target.value})} placeholder="MRN-002" /></div>
               <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Date of Birth</label><Input type="date" required value={form.dateOfBirth} onChange={(e) => setForm({...form, dateOfBirth: e.target.value})} /></div>
+              <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Email (optional — sends invite)</label><Input type="email" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} placeholder="patient@example.com" /></div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
                 <Button type="submit" isLoading={actionLoading}>Register Patient</Button>

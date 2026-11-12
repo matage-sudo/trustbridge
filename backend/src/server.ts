@@ -31,6 +31,7 @@ import { emergencyRouter } from './routes/emergency';
 import { staffDashboardRouter } from './routes/staffDashboard';
 import { complianceRouter } from './routes/compliance';
 import { adminUsersRouter } from './routes/adminUsers';
+import { authRouter } from './routes/auth';
 import { aiAssistantRouter } from './routes/aiAssistant';
 import { aiRiskRouter } from './routes/aiRisk';
 import { staffAppointmentsRouter } from './routes/staffAppointments';
@@ -141,6 +142,7 @@ const apiLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later.' }
 });
 app.use('/v1', apiLimiter);
+app.use('/v1/auth', authRouter);
 
 app.use('/v1', v1);
 
