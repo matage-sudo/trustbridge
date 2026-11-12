@@ -23,10 +23,20 @@ export default function LoginPage() {
     clearApiCache();
 
     try {
-      const { error: authError } = await createClient().auth.signInWithPassword({ email, password });
+      const supabase = createClient();
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
       if (authError) throw authError;
 
-      // Fetch role from our secure backend
+      // Check if the user has MFA enabled and needs to verify
+      const { data: mfaData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      
+      if (mfaData && mfaData.nextLevel === 'aal2' && mfaData.currentLevel !== 'aal2') {
+        // They have MFA, redirect to challenge page
+        router.replace("/mfa-challenge");
+        return;
+      }
+
+      // If no MFA required, proceed normally
       const { role } = await getApiContext();
       
       if (role === "PATIENT") {

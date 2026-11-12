@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";
 import ActingForBanner from "./ActingForBanner";
+import MfaPrompt from "./MfaPrompt";
 import { createClient } from "@/lib/supabase";
 import { clearApiCache, getApiContext } from "@/lib/api";
 
@@ -154,6 +155,7 @@ export default function AppShell({ children, portal }: { children: React.ReactNo
           </div>
         </header>
         {portal === "patient" && <ActingForBanner />}
+        <MfaPrompt />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-6">{children}</div>
         </main>

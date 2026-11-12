@@ -66,3 +66,32 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   req.headers['x-user-id'] = identity.id;
   next();
 }
+
+export function requireMfa(req: Request, res: Response, next: NextFunction) {
+  try {
+    const authHeader = req.header('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'missing_token' });
+      return;
+    }
+
+    const token = authHeader.slice('Bearer '.length).trim();
+    
+    // Decode the token to read the aal claim
+    const decoded: any = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+    
+    // If they have MFA enabled but haven't passed the challenge
+    if (decoded.aal && decoded.aal !== 'aal2') {
+      res.status(403).json({ 
+        error: 'mfa_required', 
+        detail: 'You must complete Two-Factor Authentication to access this resource.' 
+      });
+      return;
+    }
+
+    // If they don't have MFA enabled (no aal claim or aal1), let them through
+    next();
+  } catch (err) {
+    res.status(401).json({ error: 'invalid_token_format' });
+  }
+}
