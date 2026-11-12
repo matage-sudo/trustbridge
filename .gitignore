@@ -7,3 +7,9 @@ dist/
 .next/
 .DS_Store
 *.log
+# TS build cache
+*.tsbuildinfo
+
+# Editor junk
+*.swp
+*~
