@@ -20,7 +20,7 @@ export default function PatientDocuments() {
     const formData = new FormData();
     formData.append("file", file);
     // Assuming the patient is uploading their own record, backend gets patientId from context
-    formData.append("patientId", "self"); 
+    // patientId is resolved by the server 
 
     try {
       await apiUpload("/me/documents/upload", formData);
