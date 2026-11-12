@@ -1,14 +1,10 @@
 import { Router } from 'express';
 import { currentTenant } from '../middleware/tenantContext';
 import { callerMembership } from '../services/representation';
-import { Pool } from 'pg';
 
 export const complianceRouter = Router();
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
+import { pool } from '../db';
 
 complianceRouter.get('/', (_req, res) => {
   res.json({ status: 'ok', message: 'Compliance API is running. Use /controls for data.' });

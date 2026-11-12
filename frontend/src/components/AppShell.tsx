@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Shield, ShieldAlert, LayoutDashboard, FileText, Users, Settings, LogOut, Activity, Menu, User, Calendar, ClipboardCheck, BrainCircuit } from "lucide-react";
+import { Shield, ShieldAlert, LayoutDashboard, FileText, Users, Settings, LogOut, Activity, Menu, User, Calendar, ClipboardCheck, BrainCircuit, Bell, LifeBuoy, HelpCircle, HeartPulse } from "lucide-react";
 import { useEffect, useState } from "react";
 import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";
@@ -17,9 +17,15 @@ type NavLink = { name: string; href: string; icon: any };
 const LINKS: Record<Portal, NavLink[]> = {
   patient: [
     { name: "Dashboard", href: "/patient", icon: LayoutDashboard },
-    { name: "Records", href: "/patient/documents", icon: FileText },
+    { name: "Medical Records", href: "/patient/records", icon: HeartPulse },
+    { name: "Documents", href: "/patient/documents", icon: FileText },
+    { name: "Access History", href: "/patient/access-history", icon: Activity },
     { name: "Representatives", href: "/patient/representatives", icon: Users },
-    { name: "Security", href: "/patient/security", icon: Shield },
+    { name: "Announcements", href: "/patient/announcements", icon: Bell },
+    { name: "Support", href: "/patient/support", icon: LifeBuoy },
+    { name: "Help", href: "/patient/help", icon: HelpCircle },
+    { name: "Privacy", href: "/patient/privacy", icon: Shield },
+    { name: "Security", href: "/patient/security", icon: ShieldAlert },
     { name: "My Profile", href: "/patient/profile", icon: User },
   ],
   staff: [

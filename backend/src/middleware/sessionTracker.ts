@@ -1,12 +1,8 @@
 import type { NextFunction, Request, Response } from 'express';
 import { createHash } from 'node:crypto';
 import { currentTenant } from './tenantContext';
-import { Pool } from 'pg';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
+import { pool } from '../db';
 
 export async function sessionTracker(req: Request, res: Response, next: NextFunction) {
   setImmediate(() => {

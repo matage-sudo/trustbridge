@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { Request, Response, NextFunction } from 'express';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { pool } from '../db';
 import { prisma } from '../models/prisma';
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -44,10 +45,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   if (!user?.email) { res.status(401).json({ error: 'token_missing_email' }); return; }
 
-  const identity = await prisma.userIdentity.findUnique({
-    where: { email: user.email },
-    select: { id: true },
-  });
+  const identityRes = await pool.query('SELECT * FROM user_identities WHERE email = $1', [user.email]);
+     const identity = identityRes.rows[0];
 
   if (!identity) {
     if (!allowAutoProvision) { res.status(403).json({ error: 'identity_not_provisioned' }); return; }

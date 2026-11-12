@@ -569,3 +569,114 @@ enum PatientSessionStatus {
   EXPIRED
   @@schema("public")
 }
+
+// ============================================
+//
+
+
+// ============================================
+// PHASE 2: Medical Records
+// ============================================
+
+model LabResult {
+  id             String    @id @default(uuid())
+  tenantId       String
+  patientId      String
+  testName       String
+  resultValue    String?
+  referenceRange String?
+  status         String    @default("PENDING")
+  notes          String?
+  orderedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([tenantId, patientId])
+  @@index([tenantId, status])
+  @@map("lab_results")
+  @@schema("public")
+}
+
+model Prescription {
+  id           String    @id @default(uuid())
+  tenantId     String
+  patientId    String
+  medication   String
+  dosage       String
+  frequency    String
+  duration     String?
+  instructions String?
+  status       String    @default("ACTIVE")
+  prescribedBy String?
+  prescribedAt DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([tenantId, patientId])
+  @@map("prescriptions")
+  @@schema("public")
+}
+
+model Diagnosis {
+  id          String    @id @default(uuid())
+  tenantId    String
+  patientId   String
+  condition   String
+  code        String?
+  severity    String?
+  status      String    @default("ACTIVE")
+  diagnosedBy String?
+  notes       String?
+  diagnosedAt DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([tenantId, patientId])
+  @@map("diagnoses")
+  @@schema("public")
+}
+
+model Vitals {
+  id            String   @id @default(uuid())
+  tenantId      String
+  patientId     String
+  bloodPressure String?
+  heartRate     Int?
+  temperature   Float?
+  weight        Float?
+  height        Float?
+  oxygenSat     Int?
+  recordedBy    String?
+  recordedAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, patientId])
+  @@map("vitals")
+  @@schema("public")
+}
+
+// ============================================
+// PHASE 4: Support Tickets
+// ============================================
+
+model SupportTicket {
+  id         String    @id @default(uuid())
+  tenantId   String
+  userId     String
+  patientId  String?
+  subject    String
+  category   String    @default("GENERAL")
+  message    String
+  status     String    @default("OPEN")
+  priority   String    @default("NORMAL")
+  adminReply String?
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, userId])
+  @@map("support_tickets")
+  @@schema("public")
+}

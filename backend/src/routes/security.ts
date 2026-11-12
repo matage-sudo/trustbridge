@@ -1,14 +1,10 @@
 import { Router } from 'express';
 import { currentTenant } from '../middleware/tenantContext';
 import { writeAudit } from '../services/audit';
-import { Pool } from 'pg';
 
 export const securityRouter = Router();
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
+import { pool } from '../db';
 
 securityRouter.get('/sessions', async (_req, res, next) => {
   try {

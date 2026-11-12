@@ -1,10 +1,36 @@
 import { Router } from 'express';
 import { prisma } from '../models/prisma';
 import { currentTenant } from '../middleware/tenantContext';
+import { requireRole } from '../middleware/requireRole';
 import { writeAudit } from '../services/audit';
 import { evaluatePatientAccess } from '../services/policyEngine';
 
 export const patientsRouter = Router();
+// GET /v1/patients/me/access-history - Patient's own access history
+patientsRouter.get('/me/access-history', async (req, res, next) => {
+  try {
+    const { tenantId, userId } = currentTenant();
+    const membership = await prisma.membership.findFirst({ where: { tenantId, userId } });
+    if (!membership) { res.status(403).json({ error: 'membership_not_found' }); return; }
+    const patientId = (membership as any).patientId;
+    if (!patientId) { res.status(403).json({ error: 'no_patient_linked' }); return; }
+    const events = await prisma.auditEvent.findMany({
+      where: { tenantId, OR: [ { resourceType: 'patient', resourceId: patientId }, { payload: { path: ['patientId'], equals: patientId } } ] },
+      orderBy: { createdAt: 'desc' }, take: 200,
+    });
+    const actorIds = Array.from(new Set(events.map(e => e.actorUserId).filter(Boolean))) as string[];
+    const actors = actorIds.length ? await prisma.userIdentity.findMany({ where: { id: { in: actorIds } }, select: { id: true, email: true, displayName: true } }) : [];
+    const roles = actorIds.length ? await prisma.membership.findMany({ where: { tenantId, userId: { in: actorIds } }, select: { userId: true, role: true, department: { select: { name: true } } } }) : [];
+    const actorMap = new Map(actors.map(a => [a.id, a]));
+    const roleMap = new Map(roles.map(r => [r.userId, r]));
+    res.json({ items: events.map(e => {
+      const a = e.actorUserId ? actorMap.get(e.actorUserId) : null;
+      const r = e.actorUserId ? roleMap.get(e.actorUserId) : null;
+      return { id: e.id, action: e.action, outcome: e.outcome, createdAt: e.createdAt,
+        actor: a ? { displayName: a.displayName || a.email.split('@')[0], email: a.email, role: r?.role ?? 'UNKNOWN', department: r?.department?.name ?? null } : null };
+    })});
+  } catch (err) { next(err); }
+});
 
 // GET /v1/patients - list all patients for the current tenant
 patientsRouter.get('/', async (req, res, next) => {
@@ -167,7 +193,7 @@ patientsRouter.get('/:id/access-history', async (req, res, next) => {
 });
 
 // POST /v1/patients - create a new patient
-patientsRouter.post('/', async (req, res, next) => {
+patientsRouter.post('/', requireRole('HOSPITAL_ADMIN'), async (req, res, next) => {
   try {
     const { tenantId } = currentTenant();
     const { firstName, lastName, dateOfBirth, hospitalNumber } = req.body;
