@@ -3,8 +3,17 @@ import { prisma } from '../models/prisma';
 import { pool } from '../db';
 import { currentTenant } from '../middleware/tenantContext';
 import { sendInviteEmail } from '../services/email';
+import { createClient } from '@supabase/supabase-js';
 
 export const adminUsersRouter = Router();
+
+// Helper to get Supabase Admin client (same as in email.ts)
+function supabaseAdmin() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY required');
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
 
 adminUsersRouter.post('/', async (req, res, next) => {
   try {
@@ -19,7 +28,6 @@ adminUsersRouter.post('/', async (req, res, next) => {
     const normalizedEmail = String(email).trim().toLowerCase();
     let patientId: string | null = null;
 
-    // 1. If Patient, create Patient record automatically (using raw pg to match patients.ts logic)
     if (role === 'PATIENT') {
       if (!firstName || !lastName) {
         res.status(400).json({ error: 'First name and last name required for patients' });
@@ -34,7 +42,6 @@ adminUsersRouter.post('/', async (req, res, next) => {
       patientId = patRes.rows[0].id;
     }
 
-    // 2. Send Invite Email & Create Auth User
     let authUserId: string | null = null;
     let emailSent = false;
     let inviteError: string | null = null;
@@ -52,23 +59,16 @@ adminUsersRouter.post('/', async (req, res, next) => {
       return;
     }
 
-    // 3. Insert User Identity
     const identity = await prisma.userIdentity.upsert({
       where: { id: authUserId },
       update: { email: normalizedEmail, displayName: firstName && lastName ? `${firstName} ${lastName}` : normalizedEmail.split('@')[0] },
       create: { id: authUserId, email: normalizedEmail, displayName: firstName && lastName ? `${firstName} ${lastName}` : normalizedEmail.split('@')[0] },
     });
 
-    // 4. Insert Membership
     const existingMembership = await prisma.membership.findFirst({ where: { tenantId, userId: authUserId }});
     if (!existingMembership) {
       await prisma.membership.create({
-        data: {
-          tenantId,
-          userId: authUserId,
-          role,
-          patientId: patientId as string | undefined,
-        }
+        data: { tenantId, userId: authUserId, role, patientId: patientId as string | undefined }
       });
     } else if (patientId && !(existingMembership as any).patientId) {
       await prisma.membership.update({
@@ -79,6 +79,69 @@ adminUsersRouter.post('/', async (req, res, next) => {
 
     res.status(201).json({ success: true, userId: identity.id, patientId, emailSent, inviteError });
   } catch (err) {
+    next(err);
+  }
+});
+
+// NEW ROUTE: Reset MFA for a specific user
+adminUsersRouter.post('/reset-mfa', async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      res.status(400).json({ error: 'Email is required' });
+      return;
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    
+    // 1. Find the UserIdentity in our Prisma DB
+    const identity = await prisma.userIdentity.findUnique({ where: { email: normalizedEmail } });
+    
+    if (!identity) {
+      res.status(404).json({ error: 'User identity not found in local DB' });
+      return;
+    }
+
+    // 2. Delete Passkeys and Recovery Codes from Prisma
+    await prisma.passkeyCredential.deleteMany({ where: { userId: identity.id } });
+    await prisma.recoveryCode.deleteMany({ where: { userId: identity.id } });
+
+    // 3. Delete TOTP factors from Supabase Auth
+    const admin = supabaseAdmin();
+    
+    // List factors for this user
+    const { data: factorsData, error: listError } = await admin.auth.admin.mfa.listFactors({
+      userId: identity.id
+    });
+
+    if (listError) {
+      console.warn('Failed to list Supabase MFA factors:', listError.message);
+    } else if (factorsData) {
+      // Delete all factors (TOTP or otherwise)
+      for (const factor of factorsData) {
+        await admin.auth.admin.mfa.deleteFactor({
+          id: factor.id,
+          userId: identity.id
+        });
+      }
+    }
+
+    // 4. Log the Audit Event
+    const adminId = req.header('x-user-id');
+    if (adminId) {
+      await prisma.auditEvent.create({
+        data: {
+          actorUserId: adminId,
+          action: 'ADMIN_RESET_MFA',
+          resourceType: 'MFA',
+          outcome: 'SUCCESS',
+          payload: { targetUserEmail: normalizedEmail }
+        }
+      });
+    }
+
+    res.json({ success: true, message: 'MFA reset successfully for ' + normalizedEmail });
+  } catch (err: any) {
     next(err);
   }
 });

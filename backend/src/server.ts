@@ -112,7 +112,15 @@ v1.use('/emergency', emergencyRouter);
 v1.use('/staff/dashboard', requireRole('HOSPITAL_ADMIN', 'STAFF', 'SUPER_ADMIN'), staffDashboardRouter);
 v1.use('/ai-risk', aiRiskRouter);
 v1.use('/staff/appointments', staffAppointmentsRouter);
-v1.use('/mfa', mfaRouter);
+const mfaLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 10, // Only 10 attempts per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many MFA attempts. Please try again later.' }
+});
+
+v1.use('/mfa', mfaLimiter, mfaRouter);
 
 v1.use('/patients/search', requireAuth, tenantMiddleware, async (req, res) => {
   try {

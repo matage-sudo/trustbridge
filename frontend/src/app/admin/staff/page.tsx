@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Search, Loader2, UserCog, Plus, Key, X, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Search, Loader2, UserCog, Plus, Key, X, AlertTriangle, ShieldAlert } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/Card";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/Button";
 
 type Staff = { id: string; role: string; employmentStatus: string; user: { id: string; email: string; displayName: string | null }; };
 
-const ROLE_LABEL: Record<string, string> = { PATIENT: "Patient", STAFF: "Staff", HOSPITAL_ADMIN: "Hospital Admin", PRIVACY_OFFICER: "Privacy Officer", SECURITY_INVESTIGATOR: "Security Investigator", SUPER_ADMIN: "Super Admin" };
+const ROLE_LABEL: Record<string, string> = { PATIENT: "Patient", STAFF: "Staff", HOSPITAL_ADMIN: "Hospital Admin", PRIVACY_OFFICER: "Privacy Officer", SECURITY_INVESTIGATOR: "SecurityInvestigator", SUPER_ADMIN: "Super Admin" };
 const ALLOWED_CREATE_ROLES: Record<string, string> = { PATIENT: "Patient", STAFF: "Staff" };
 
 export default function AdminStaffPage() {
@@ -35,21 +35,31 @@ export default function AdminStaffPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setActionLoading(true); setError("");
     try {
-      await apiFetch("/staff/create-account", { method: "POST", body: JSON.stringify({ email: newEmail, displayName: newName, role: newRole }) });
-      setIsModalOpen(false); setNewEmail(""); setNewName(""); fetchStaff();
-    } catch (err: any) { setError(err.message || "Failed to create account"); } finally { setActionLoading(false); }
+      await apiFetch("/staff/create-account",{ method: "POST", body: JSON.stringify({ email: newEmail, displayName: newName, role: newRole }) });
+      setIsModalOpen(false); setNewEmail("");setNewName(""); fetchStaff();
+    } catch (err: any) { setError(err.message|| "Failed to create account"); } finally { setActionLoading(false); }
   };
 
-  const handleRoleChange = async (id: string, role: string) => {
+  const handleRoleChange = async (id: string,role: string) => {
     try {
       await apiFetch(`/staff/${id}`, { method: "PATCH", body: JSON.stringify({ role }) });
-      setStaff((prev) => prev.map((s) => s.id === id ? { ...s, role } : s));
+      setStaff((prev) => prev.map((s) => s.id=== id ? { ...s, role } : s));
     } catch (err: any) { alert(err.message); }
   };
 
   const handleReset = async (email: string) => {
     if (!confirm(`Send password reset to ${email}?`)) return;
     try { await apiFetch("/staff/reset-password", { method: "POST", body: JSON.stringify({ email }) }); alert("Reset email sent."); } catch (err: any) { alert(err.message); }
+  };
+
+  const handleResetMfa = async (email: string) => {
+    if (!confirm(`Are you sure you want to reset ALL MFA (Authenticator, Passkeys, Recovery Codes) for ${email}? They will be able to log in with just their password until they set it up again.`)) return;
+    try { 
+      await apiFetch("/admin/users/reset-mfa", { method: "POST", body: JSON.stringify({ email }) }); 
+      alert("MFA Reset successfully."); 
+    } catch (err: any) { 
+      alert(err.message); 
+    }
   };
 
   return (
@@ -83,8 +93,9 @@ export default function AdminStaffPage() {
                         {Object.entries(ROLE_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                       </select>
                     </td>
-                    <td className="px-6 py-3 text-right">
+                    <td className="px-6 py-3 text-right space-x-2">
                       <Button variant="outline" size="sm" onClick={() => handleReset(s.user.email)}><Key className="w-3 h-3 mr-1" /> Reset Pass</Button>
+                      <Button variant="danger" size="sm" onClick={() => handleResetMfa(s.user.email)}><ShieldAlert className="w-3 h-3 mr-1" /> Reset MFA</Button>
                     </td>
                   </tr>
                 ))
@@ -100,7 +111,7 @@ export default function AdminStaffPage() {
             <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-800"><h2 className="text-lg font-bold dark:text-white">Add New User</h2><button onClick={() => setIsModalOpen(false)}><X className="w-5 h-5 text-slate-400" /></button></div>
             <form onSubmit={handleCreate} className="p-4 space-y-4">
               {error && <div className="text-sm text-red-600 bg-red-50 p-2 rounded flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> {error}</div>}
-              <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Full Name</label><Input required value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Dr. Jane Doe" /></div>
+              <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Full Name</label><Input required value={newName}onChange={(e) => setNewName(e.target.value)} placeholder="Dr. Jane Doe" /></div>
               <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Email</label><Input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="jane@hospital.com" /></div>
               <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Role</label><select value={newRole} onChange={(e) => setNewRole(e.target.value)} className="w-full rounded-lg border border-slate-300 p-2 text-sm dark:bg-slate-900 dark:border-slate-700 dark:text-white">{Object.entries(ALLOWED_CREATE_ROLES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
               <div className="flex justify-end gap-2 pt-2">

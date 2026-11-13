@@ -100,3 +100,13 @@ export async function sendResetEmail(email: string): Promise<{ emailSent: boolea
   const sent = await sendViaKeplars(email, `Reset your ${APP_NAME} password`, html);
   return { emailSent: sent };
 }
+export async function sendMfaSecurityAlertEmail(email: string, action: string): Promise<void> {
+  const html = wrapHtml(
+    'Security Alert: MFA Updated',
+    `A new security method was added or used on your ${APP_NAME} account: <strong>${action}</strong>. If you did not authorize this, please contact support immediately.`,
+    'Review Account Security',
+    `${FRONTEND_URL}/patient/security`,
+    'This is an automated security notification.'
+  );
+  await sendViaKeplars(email, `Security Alert: ${action}`, html);
+}
