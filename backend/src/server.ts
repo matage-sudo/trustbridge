@@ -1,6 +1,5 @@
 import path from 'path';
 import { config } from 'dotenv';
-// Force synchronous load of .env from the backend root before ANY other import runs
 config({ path: path.resolve(process.cwd(), '.env') });
 import express from 'express';
 import helmet from 'helmet';
@@ -38,6 +37,7 @@ import { staffAppointmentsRouter } from './routes/staffAppointments';
 import { recordsRouter } from './routes/records';
 import { supportRouter } from './routes/support';
 import { announcementsRouter } from './routes/announcements';
+import { mfaRouter } from './routes/mfa';
 import { pool } from './db';
 import { currentTenant } from './middleware/tenantContext';
 import { prisma } from './models/prisma';
@@ -90,7 +90,7 @@ app.get('/v1/me/context', requireAuth, async (req, res, next) => {
 
 const v1 = express.Router();
 v1.use(requireAuth);
-v1.use(tenantMiddleware);;
+v1.use(tenantMiddleware);
 v1.use(sessionTracker);
 v1.use('/tenants', tenantRouter);
 v1.use('/audit-events', auditRouter);
@@ -112,6 +112,7 @@ v1.use('/emergency', emergencyRouter);
 v1.use('/staff/dashboard', requireRole('HOSPITAL_ADMIN', 'STAFF', 'SUPER_ADMIN'), staffDashboardRouter);
 v1.use('/ai-risk', aiRiskRouter);
 v1.use('/staff/appointments', staffAppointmentsRouter);
+v1.use('/mfa', mfaRouter);
 
 v1.use('/patients/search', requireAuth, tenantMiddleware, async (req, res) => {
   try {
@@ -133,17 +134,15 @@ v1.use('/ai', aiAssistantRouter);
 v1.use('/me/representatives', meRepresentativesRouter);
 v1.use('/admin/representatives', requireRole('HOSPITAL_ADMIN', 'PRIVACY_OFFICER', 'SUPER_ADMIN'), adminRepresentativesRouter);
 
-// Security Hardening: Rate Limiting
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000, 
+  max: 100, 
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' }
 });
 app.use('/v1', apiLimiter);
 app.use('/v1/auth', authRouter);
-
 app.use('/v1', v1);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

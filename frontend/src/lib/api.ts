@@ -40,7 +40,8 @@ export async function getApiContext(): Promise<Context> {
 
   // cache: "no-store" PREVENTS the 304 error that breaks the dashboard
   const response = await fetch(`${API_URL}/me/context`, {
-    headers: { 
+    headers: {
+      ...(typeof window !== 'undefined' && localStorage.getItem('mfa_token') ? { 'x-mfa-token': localStorage.getItem('mfa_token') as string } : {}), 
       Authorization: `Bearer ${token}`,
       "x-tenant-id": DEV_TENANT_ID 
     },
@@ -87,6 +88,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
+      ...(typeof window !== 'undefined' && localStorage.getItem('mfa_token') ? { 'x-mfa-token': localStorage.getItem('mfa_token') as string } : {}),
       "Content-Type": "application/json",
       "Authorization": `Bearer ${token}`,
       "x-tenant-id": ctx.tenantId || DEV_TENANT_ID, // Bulletproof fallback
@@ -115,6 +117,7 @@ async function rawFetch(path: string, options: RequestInit = {}): Promise<Respon
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
+      ...(typeof window !== 'undefined' && localStorage.getItem('mfa_token') ? { 'x-mfa-token': localStorage.getItem('mfa_token') as string } : {}),
       "Authorization": `Bearer ${token}`,
       "x-tenant-id": ctx.tenantId || DEV_TENANT_ID,
       "x-user-id": ctx.userId,

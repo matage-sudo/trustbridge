@@ -1,6 +1,6 @@
 generator client {
   provider        = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  binaryTargets   = ["native", "rhel-openssl-3.0.x"]
   previewFeatures = ["multiSchema"]
 }
 
@@ -10,16 +10,11 @@ datasource db {
   schemas  = ["public", "auth"]
 }
 
-// Ignore the Supabase Auth schema's models so Prisma won't try to manage them
 model User {
   id String @id @db.Uuid
   @@schema("auth")
   @@ignore
 }
-
-// ============================================================
-// Enums
-// ============================================================
 
 enum TenantStatus {
   ACTIVE
@@ -72,9 +67,12 @@ enum AccessPurpose {
   @@schema("public")
 }
 
-// ============================================================
-// Core tenant models
-// ============================================================
+enum PatientSessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+  @@schema("public")
+}
 
 model Tenant {
   id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -113,9 +111,39 @@ model UserIdentity {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  memberships Membership[]
+  memberships   Membership[]
+  passkeys      PasskeyCredential[]
+  recoveryCodes RecoveryCode[]
 
   @@map("user_identities")
+  @@schema("public")
+}
+
+model PasskeyCredential {
+  id           String   @id @default(uuid())
+  userId       String   @db.Uuid
+  user         UserIdentity @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialID String   @unique 
+  publicKey    String   
+  counter      Int      @default(0)
+  deviceType   String   
+  backedUp     Boolean
+  transports   String?  
+  createdAt    DateTime @default(now())
+
+  @@map("passkey_credentials")
+  @@schema("public")
+}
+
+model RecoveryCode {
+  id        String   @id @default(uuid())
+  userId    String   @db.Uuid
+  user      UserIdentity @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String   
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("recovery_codes")
   @@schema("public")
 }
 
@@ -142,7 +170,7 @@ model Membership {
   role             MembershipRole
   active           Boolean        @default(true)
   departmentId     String?        @db.Uuid
-  patientId        String?        @db.Uuid // <-- FIX: Added for patient portal mapping
+  patientId        String?        @db.Uuid 
   employmentStatus String         @default("ACTIVE")
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -150,8 +178,6 @@ model Membership {
   tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user       UserIdentity @relation(fields: [userId], references: [id], onDelete: Cascade)
   department Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  
-  // Relation to the actual patient record this membership is linked to
   patient    Patient?     @relation("PatientPrimary", fields: [patientId], references: [id], onDelete: SetNull)
 
   appointments              Appointment[]
@@ -166,10 +192,6 @@ model Membership {
   @@map("memberships")
   @@schema("public")
 }
-
-// ============================================================
-// Clinical / operational models
-// ============================================================
 
 model Patient {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -256,10 +278,6 @@ model Consent {
   @@schema("public")
 }
 
-// ============================================================
-// Access Control (Policy Engine)
-// ============================================================
-
 model AccessRequest {
   id                     String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId               String              @db.Uuid
@@ -314,10 +332,6 @@ model AccessGrant {
   @@schema("public")
 }
 
-// ============================================================
-// Audit
-// ============================================================
-
 model AuditEvent {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String?  @db.Uuid
@@ -337,10 +351,6 @@ model AuditEvent {
   @@map("audit_events")
   @@schema("public")
 }
-
-// ============================================================
-// Documents & Vault
-// ============================================================
 
 model PatientDocument {
   id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -362,10 +372,6 @@ model PatientDocument {
   @@map("patient_documents")
   @@schema("public")
 }
-
-// ============================================================
-// Representatives
-// ============================================================
 
 model Representative {
   id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -395,10 +401,6 @@ model Representative {
   @@schema("public")
 }
 
-// ============================================================
-// Emergency Access
-// ============================================================
-
 model EmergencyAccess {
   id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String    @db.Uuid
@@ -423,10 +425,6 @@ model EmergencyAccess {
   @@map("emergency_access")
   @@schema("public")
 }
-
-// ============================================================
-// Notifications & DSR
-// ============================================================
 
 model Notification {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -475,10 +473,6 @@ model DataSubjectRequest {
   @@map("tb_data_subject_requests")
   @@schema("public")
 }
-
-// ============================================================
-// Session Tracking & Security
-// ============================================================
 
 model PatientDevice {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -545,10 +539,6 @@ model SecurityAlert {
   @@schema("public")
 }
 
-// ============================================================
-// Staff Announcements
-// ============================================================
-
 model StaffAnnouncement {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId  String   @db.Uuid
@@ -562,21 +552,6 @@ model StaffAnnouncement {
   @@map("staff_announcements")
   @@schema("public")
 }
-
-enum PatientSessionStatus {
-  ACTIVE
-  REVOKED
-  EXPIRED
-  @@schema("public")
-}
-
-// ============================================
-//
-
-
-// ============================================
-// PHASE 2: Medical Records
-// ============================================
 
 model LabResult {
   id             String    @id @default(uuid())
@@ -655,10 +630,6 @@ model Vitals {
   @@map("vitals")
   @@schema("public")
 }
-
-// ============================================
-// PHASE 4: Support Tickets
-// ============================================
 
 model SupportTicket {
   id         String    @id @default(uuid())
