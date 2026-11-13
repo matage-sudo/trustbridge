@@ -133,7 +133,7 @@ adminUsersRouter.post('/reset-mfa', async (req, res, next) => {
     const { data: factorsData, error: listError } = await admin.auth.admin.mfa.listFactors({ userId: identity.id });
 
     if (!listError && factorsData) {
-      for (const factor of factorsData) {
+      for (const factor of factorsData.factors) {
         await admin.auth.admin.mfa.deleteFactor({ id: factor.id, userId: identity.id });
       }
     }
