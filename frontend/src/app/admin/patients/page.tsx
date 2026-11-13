@@ -98,7 +98,7 @@ export default function AdminPatientsPage() {
                 <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Last Name</label><Input required value={form.lastName} onChange={(e) => setForm({...form, lastName: e.target.value})} /></div>
               </div>
               <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Hospital Number (MRN)</label><Input required value={form.hospitalNumber} onChange={(e) => setForm({...form, hospitalNumber: e.target.value})} placeholder="MRN-002" /></div>
-              <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Date of Birth</label><Input type="date" requiredvalue={form.dateOfBirth} onChange={(e) => setForm({...form, dateOfBirth: e.target.value})} /></div>
+              <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Date of Birth</label><Input type="date" required value={form.dateOfBirth} onChange={(e) => setForm({...form, dateOfBirth: e.target.value})} /></div>
               <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Email (optional &mdash; sends invite)</label><Input type="email" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} placeholder="patient@example.com" /></div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
