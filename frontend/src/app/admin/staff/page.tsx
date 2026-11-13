@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Search, Loader2, UserCog, Plus, Key, X, AlertTriangle, ShieldAlert } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getApiContext } from "@/lib/api";
 import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -23,6 +23,7 @@ export default function AdminStaffPage() {
   const [newEmail, setNewEmail] = useState(""); const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("STAFF");
   const [actionLoading, setActionLoading] = useState(false); const [error, setError] = useState("");
+  const [currentUserRole, setCurrentUserRole] = useState<string>("");
 
   const fetchStaff = () => {
     setLoading(true);
@@ -30,7 +31,11 @@ export default function AdminStaffPage() {
       .then((res) => setStaff(res.items)).catch((err) => setError(err.message)).finally(() => setLoading(false));
   };
 
-  useEffect(() => { const timer = setTimeout(fetchStaff, 300); return () => clearTimeout(timer); }, [search]);
+  useEffect(() => { 
+    const timer = setTimeout(fetchStaff, 300); 
+    getApiContext().then(ctx => setCurrentUserRole(ctx.role));
+    return () => clearTimeout(timer); 
+  }, [search]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setActionLoading(true); setError("");
@@ -89,8 +94,19 @@ export default function AdminStaffPage() {
                     <td className="px-6 py-3 font-medium text-slate-900 dark:text-white"><div className="flex items-center gap-2"><UserCog className="w-4 h-4 text-slate-400" />{s.user.displayName || s.user.email.split("@")[0]}</div></td>
                     <td className="px-6 py-3 text-slate-600 dark:text-slate-400 font-mono text-xs">{s.user.email}</td>
                     <td className="px-6 py-3">
-                      <select value={s.role} onChange={(e) => handleRoleChange(s.id, e.target.value)} className="bg-transparent border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs font-medium dark:text-white outline-none focus:border-blue-500">
-                        {Object.entries(ROLE_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                      <select 
+                        value={s.role} 
+                        onChange={(e) => handleRoleChange(s.id, e.target.value)} 
+                        disabled={s.role === 'SUPER_ADMIN' && currentUserRole !== 'SUPER_ADMIN'}
+                        className="bg-transparent border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs font-medium dark:text-white outline-none focus:border-blue-500 disabled:opacity-50"
+                      >
+                        {Object.entries(ROLE_LABEL)
+                          .filter(([role]) => {
+                            // Only Super Admins can see/assign the Super Admin role
+                            if (role === 'SUPER_ADMIN') return currentUserRole === 'SUPER_ADMIN';
+                            return true;
+                          })
+                          .map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                       </select>
                     </td>
                     <td className="px-6 py-3 text-right space-x-2">
@@ -113,7 +129,17 @@ export default function AdminStaffPage() {
               {error && <div className="text-sm text-red-600 bg-red-50 p-2 rounded flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> {error}</div>}
               <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Full Name</label><Input required value={newName}onChange={(e) => setNewName(e.target.value)} placeholder="Dr. Jane Doe" /></div>
               <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Email</label><Input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="jane@hospital.com" /></div>
-              <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Role</label><select value={newRole} onChange={(e) => setNewRole(e.target.value)} className="w-full rounded-lg border border-slate-300 p-2 text-sm dark:bg-slate-900 dark:border-slate-700 dark:text-white">{Object.entries(ALLOWED_CREATE_ROLES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+              <div>
+  <label className="block text-sm font-medium mb-1 dark:text-slate-300">Role</label>
+  <select value={newRole} onChange={(e) => setNewRole(e.target.value)} className="w-full rounded-lg border border-slate-300 p-2 text-sm dark:bg-slate-900 dark:border-slate-700 dark:text-white">
+    {Object.entries(ROLE_LABEL)
+      .filter(([role]) => {
+        if (currentUserRole === 'SUPER_ADMIN') return true; // Super Admin can create anyone
+        return role === 'PATIENT' || role === 'STAFF'; // Normal Admins can only create Patients/Staff
+      })
+      .map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+  </select>
+</div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
                 <Button type="submit" isLoading={actionLoading}>Create User</Button>

@@ -17,11 +17,17 @@ function supabaseAdmin() {
 
 adminUsersRouter.post('/', async (req, res, next) => {
   try {
-    const { tenantId } = currentTenant();
+    const { tenantId, role: requesterRole } = currentTenant();
     const { email, role, firstName, lastName } = req.body;
 
     if (!email || !role) {
       res.status(400).json({ error: 'Missing required fields: email, role' });
+      return;
+    }
+
+    // SECURITY CHECK: Only SUPER_ADMIN can create another SUPER_ADMIN
+    if (role === 'SUPER_ADMIN' && requesterRole !== 'SUPER_ADMIN') {
+      res.status(403).json({ error: 'Forbidden: Only a Super Admin can create another Super Admin.' });
       return;
     }
     

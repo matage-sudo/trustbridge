@@ -38,9 +38,16 @@ staffRouter.get('/departments', async (_req, res, next) => {
 
 staffRouter.post('/create-account', async (req, res, next) => {
   try {
-    const { tenantId } = currentTenant();
+    const { tenantId, role: requesterRole } = currentTenant();
     const { email, displayName, role } = req.body;
     if (!email) { res.status(400).json({ error: 'email_required' }); return; }
+
+    // SECURITY CHECK: Only SUPER_ADMIN can create another SUPER_ADMIN
+    if (role === 'SUPER_ADMIN' && requesterRole !== 'SUPER_ADMIN') {
+      res.status(403).json({ error: 'Forbidden: Only a Super Admin can create another Super Admin.' });
+      return;
+    }
+
     const normalizedEmail = String(email).trim().toLowerCase();
 
     let authUserId: string | null = null;
@@ -86,11 +93,25 @@ staffRouter.post('/reset-password', async (req, res, next) => {
 
 staffRouter.patch('/:membershipId', async (req, res, next) => {
   try {
-    const { tenantId } = currentTenant();
+    const { tenantId, role: requesterRole } = currentTenant();
     const { membershipId } = req.params;
     const { role, departmentId, employmentStatus } = req.body;
+
     const existing = await prisma.membership.findFirst({ where: { id: membershipId, tenantId } });
     if (!existing) { res.status(404).json({ error: 'membership_not_found' }); return; }
+
+    // SECURITY CHECK 1: Only SUPER_ADMIN can modify another SUPER_ADMIN
+    if (existing.role === 'SUPER_ADMIN' && requesterRole !== 'SUPER_ADMIN') {
+      res.status(403).json({ error: 'Forbidden: Only a Super Admin can modify another Super Admin.' });
+      return;
+    }
+
+    // SECURITY CHECK 2: Only SUPER_ADMIN can assign the SUPER_ADMIN role
+    if (role === 'SUPER_ADMIN' && requesterRole !== 'SUPER_ADMIN') {
+      res.status(403).json({ error: 'Forbidden: Only a Super Admin can assign the Super Admin role.' });
+      return;
+    }
+
     const updated = await prisma.membership.update({
       where: { id: membershipId },
       data: {
@@ -103,6 +124,7 @@ staffRouter.patch('/:membershipId', async (req, res, next) => {
         department: { select: { id: true, name: true } },
       },
     });
+    
     await writeAudit({ action: 'staff.update', resourceType: 'membership', resourceId: membershipId, payload: { role, departmentId, employmentStatus } });
     res.json(updated);
   } catch (err) { next(err); }
