@@ -56,17 +56,12 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex bg-white">
-      {/* LEFT SIDE - Image with Blurred Background */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-[#0B1B3D]">
-        {/* Blurred background layer */}
-        <div
-          className="absolute inset-0 bg-cover bg-center blur-2xl scale-125 opacity-60"
-          style={{ backgroundImage: "url('/login-bg.png')" }}
-        />
-        {/* Sharp foreground image */}
-        <div
-          className="relative z-10 w-full h-full bg-contain bg-no-repeat bg-center"
-          style={{ backgroundImage: "url('/login-bg.png')" }}
+      {/* LEFT SIDE - Custom Image */}
+      <div className="hidden lg:block lg:w-1/2 relative overflow-hidden bg-[#0B1B3D]">
+        <img 
+          src="/login-bg.png" 
+          alt="TrustBridge Login" 
+          className="absolute inset-0 w-full h-full object-cover object-[20%_center]"
         />
       </div>
 
