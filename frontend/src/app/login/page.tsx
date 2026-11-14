@@ -59,7 +59,7 @@ export default function LoginPage() {
       {/* LEFT SIDE - Your Custom Image */}
       {/* We use bg-cover and bg-center to make sure it fills the left side perfectly */}
       <div 
-        className="hidden lg:block lg:w-1/2 relative bg-cover bg-center"
+        className="hidden lg:block lg:w-1/2 relative bg-[#0B1B3D] bg-contain bg-no-repeat bg-center"
         style={{
           backgroundImage: "url('/login-bg.png')",
         }}
