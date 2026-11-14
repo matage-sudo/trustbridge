@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, ArrowRight, Loader2, Mail, Lock, Eye, EyeOff, Shield, CheckCircle2, Users } from "lucide-react";
+import { ShieldCheck, ArrowRight, Mail, Lock, Eye, EyeOff, ShieldAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { clearApiCache, getApiContext } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
@@ -28,16 +28,13 @@ export default function LoginPage() {
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
       if (authError) throw authError;
 
-      // Check if the user has MFA enabled and needs to verify
       const { data: mfaData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
       
       if (mfaData && mfaData.nextLevel === 'aal2' && mfaData.currentLevel !== 'aal2') {
-        // They have MFA, redirect to challenge page
         router.replace("/mfa-challenge");
         return;
       }
 
-      // If no MFA required, proceed normally
       const { role } = await getApiContext();
       
       if (role === "PATIENT") {
@@ -59,58 +56,18 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex bg-white">
-      {/* LEFT SIDE - Image & Branding (Hidden on Mobile/Tablet) */}
+      {/* LEFT SIDE - Your Custom Image */}
+      {/* We use bg-cover and bg-center to make sure it fills the left side perfectly */}
       <div 
-        className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 text-white"
+        className="hidden lg:block lg:w-1/2 relative bg-cover bg-center"
         style={{
-          backgroundImage: "url('https://images.unsplash.com/photo-1579684385127-1ef15d508118?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80')", // Placeholder, replace with your actual image
-          backgroundSize: "cover",
-          backgroundPosition: "center",
+          backgroundImage: "url('/login-bg.png')",
         }}
-      >
-        {/* Dark Gradient Overlay for text readability */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0B1B3D]/95 via-[#0B1B3D]/40 to-transparent"></div>
-
-        {/* Top Logo */}
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center">
-            <ShieldCheck className="w-8 h-8 text-[#0B1B3D]" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Trust Bridge</h1>
-            <p className="text-sm text-blue-200">Better Care. Stronger Trust.</p>
-          </div>
-        </div>
-
-        {/* Middle Quote Box */}
-        <div className="relative z-10 ml-auto w-80 bg-white/10 backdrop-blur-md border border-white/20 p-6 rounded-2xl">
-          <div className="text-4xl text-blue-300 font-serif leading-none mb-2">“</div>
-          <h2 className="text-xl font-bold mb-2 leading-tight">Your Data. Your Consent.<br/>Our Priority.</h2>
-          <p className="text-sm text-blue-100/80 mb-4">
-            We use advanced cybersecurity to protect your information and respect your consent at all times.
-          </p>
-          <p className="text-sm font-medium text-blue-200">— Your Healthcare Partner</p>
-        </div>
-
-        {/* Bottom Badges */}
-        <div className="relative z-10 grid grid-cols-3 gap-4 border-t border-white/20 pt-6">
-          <div className="flex flex-col items-center text-center gap-2">
-            <ShieldCheck className="w-6 h-6 text-blue-300" />
-            <span className="text-xs font-medium">Secure Access</span>
-          </div>
-          <div className="flex flex-col items-center text-center gap-2">
-            <Lock className="w-6 h-6 text-blue-300" />
-            <span className="text-xs font-medium">Data Protection</span>
-          </div>
-          <div className="flex flex-col items-center text-center gap-2">
-            <Users className="w-6 h-6 text-blue-300" />
-            <span className="text-xs font-medium">Your Consent Matters</span>
-          </div>
-        </div>
-      </div>
+      />
 
       {/* RIGHT SIDE - Login Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative overflow-hidden">
+        
         {/* Background Accents (Wavy shapes) */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-bl-full opacity-50 pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-50 rounded-tr-full opacity-50 pointer-events-none"></div>
@@ -150,7 +107,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email Address or Staff ID"
-                className="pl-11 h-14 rounded-xl border-slate-200 text-base shadow-sm focus:border-blue-600 focus:ring-blue-600 bg-white"
+                className="pl-11 h-14 rounded-xl border-slate-300 text-base shadow-sm focus:border-blue-600 focus:ring-blue-600 !bg-white !text-slate-900"
               />
             </div>
 
@@ -165,7 +122,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
-                className="pl-11 pr-12 h-14 rounded-xl border-slate-200 text-base shadow-sm focus:border-blue-600 focus:ring-blue-600 bg-white"
+                className="pl-11 pr-12 h-14 rounded-xl border-slate-300 text-base shadow-sm focus:border-blue-600 focus:ring-blue-600 !bg-white !text-slate-900"
               />
               <button
                 type="button"
@@ -209,16 +166,5 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
-  );
-}
-
-// Add this small missing icon to prevent build errors
-function ShieldAlert({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path>
-      <line x1="12" y1="9" x2="12" y2="13"></line>
-      <line x1="12" y1="17" x2="12.01" y2="17"></line>
-    </svg>
   );
 }
