@@ -62,7 +62,7 @@ export default function LoginPage() {
         <img 
           src="/login-bg.png" 
           alt="TrustBridge Healthcare" 
-          className="absolute inset-0 w-full h-full object-cover object-bottom"
+          className="absolute inset-0 w-full h-full object-cover object-[center_25%]"
         />
       </div>
 
