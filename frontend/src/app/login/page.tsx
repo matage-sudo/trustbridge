@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, ArrowRight, Mail, Lock, Eye, EyeOff, ShieldAlert, HeartPulse, Users, Shield } from "lucide-react";
+import { ShieldCheck, ArrowRight, Mail, Lock, Eye, EyeOff, ShieldAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { clearApiCache, getApiContext } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
@@ -57,71 +57,13 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex bg-white">
       
-      {/* ======================================================== */}
-      {/* LEFT SIDE - RECREATED POSTER (HTML/CSS ONLY)             */}
-      {/* ======================================================== */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-[#061e4f] flex-col justify-between">
-        
-        {/* Background Image (Using your image, but covering the whole area) */}
-        <div 
-          className="absolute inset-0 bg-cover bg-[center_top] opacity-80"
-          style={{ backgroundImage: "url('/login-bg.png')" }}
-        ></div>
+      {/* LEFT SIDE - IMAGE FILLING THE ENTIRE LEFT HALF */}
+      <div 
+        className="hidden lg:block lg:w-1/2 relative bg-cover bg-[center_top]"
+        style={{ backgroundImage: "url('/login-bg.png')" }}
+      />
 
-        {/* Gradient Overlays for readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#061e4f]/80 via-transparent to-[#061e4f]"></div>
-
-        {/* 1. TOP LOGO */}
-        <div className="relative z-10 p-8 flex items-center gap-3">
-          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg">
-            <HeartPulse className="w-7 h-7 text-[#0B1B3D]" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Trust Bridge</h1>
-            <p className="text-sm text-blue-200">Better Care. Stronger Trust.</p>
-          </div>
-        </div>
-
-        {/* 2. GLASSMORPHISM QUOTE BOX */}
-        <div className="relative z-10 px-8 mb-12">
-          <div className="bg-white/10 backdrop-blur-md border border-white/20 p-6 rounded-2xl max-w-sm ml-auto text-white shadow-2xl">
-            <div className="text-4xl text-blue-300 font-serif leading-none mb-2">“</div>
-            <h2 className="text-xl font-bold mb-2 leading-tight">Your Data. Your Consent.<br/>Our Priority.</h2>
-            <p className="text-sm text-blue-50/90 mb-4">
-              We use advanced cybersecurity to protect your information and respect your consent at all times.
-            </p>
-            <p className="text-sm font-medium text-blue-200">— Your Healthcare Partner</p>
-          </div>
-        </div>
-
-        {/* 3. BOTTOM WAVE & ICONS */}
-        <div className="relative z-10 w-full mt-auto">
-          {/* Wavy shape */}
-          <div className="absolute -top-10 left-0 w-full h-12 bg-[#061e4f]" style={{ clipPath: "ellipse(65% 100% at 50% 100%)" }}></div>
-          
-          <div className="bg-[#061e4f] pt-8 pb-12 px-8">
-            <div className="grid grid-cols-3 gap-4 max-w-md mx-auto text-center text-white">
-              <div className="flex flex-col items-center gap-2">
-                <ShieldCheck className="w-8 h-8 text-blue-400" />
-                <span className="text-xs font-semibold">Secure<br/>Access</span>
-              </div>
-              <div className="flex flex-col items-center gap-2 border-x border-white/20">
-                <Lock className="w-8 h-8 text-blue-400" />
-                <span className="text-xs font-semibold">Data<br/>Protection</span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <Users className="w-8 h-8 text-blue-400" />
-                <span className="text-xs font-semibold">Your Consent<br/>Matters</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* ======================================================== */}
-      {/* RIGHT SIDE - LOGIN FORM                                  */}
-      {/* ======================================================== */}
+      {/* RIGHT SIDE - LOGIN FORM */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative overflow-hidden">
         
         {/* Background Accents */}
