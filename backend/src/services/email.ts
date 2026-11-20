@@ -117,59 +117,16 @@ export async function sendInviteEmail(
   const admin = supabaseAdmin();
   const redirectTo = `${FRONTEND_URL}/reset-password`;
 
-  let linkType: 'invite' | 'recovery' = 'invite';
-
-  let linkRes = await admin.auth.admin.generateLink({
-    type: 'invite',
-    email,
-    options: { redirectTo },
+  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+    redirectTo,
+    data: { kind },
   });
 
-  if (linkRes.error && /already|exist/i.test(linkRes.error.message)) {
-    linkType = 'recovery';
-
-    linkRes = await admin.auth.admin.generateLink({
-      type: 'recovery',
-      email,
-      options: { redirectTo },
-    });
+  if (error) {
+    throw new Error(`inviteUserByEmail failed: ${error.message}`);
   }
 
-  if (linkRes.error || !linkRes.data?.properties?.hashed_token) {
-    throw new Error(
-      `generateLink failed: ${linkRes.error?.message ?? 'no_token'}`
-    );
-  }
-
-  const url = `${FRONTEND_URL}/reset-password?token_hash=${encodeURIComponent(
-    linkRes.data.properties.hashed_token
-  )}&type=${linkType}`;
-
-  const userId = linkRes.data.user?.id ?? null;
-
-  const blurb =
-    kind === 'patient'
-      ? 'Your hospital has created a secure patient portal account for you. Click below to set your password and access your medical records.'
-      : 'Your hospital has created a secure TrustBridge account for you. Click below to set your password and access your clinical portal.';
-
-  const html = wrapHtml(
-    'Welcome to TrustBridge - Activate Your Account',
-    blurb,
-    'Set My Password',
-    url,
-    "If you didn't expect this email, you can safely ignore it. The link expires in 12 hours."
-  );
-
-  const sent = await sendViaBrevo(
-    email,
-    `Activate your ${APP_NAME} account`,
-    html
-  );
-
-  return {
-    userId,
-    emailSent: sent,
-  };
+  return { userId: data.user?.id ?? null, emailSent: true };
 }
 
 export async function sendResetEmail(
@@ -178,40 +135,15 @@ export async function sendResetEmail(
   const admin = supabaseAdmin();
   const redirectTo = `${FRONTEND_URL}/reset-password`;
 
-  const linkRes = await admin.auth.admin.generateLink({
-    type: 'recovery',
-    email,
-    options: { redirectTo },
+  const { error } = await admin.auth.resetPasswordForEmail(email, {
+    redirectTo,
   });
 
-  if (linkRes.error || !linkRes.data?.properties?.hashed_token) {
-    return {
-      emailSent: false,
-      skipped: 'user_not_found_or_link_failed',
-    };
+  if (error) {
+    return { emailSent: false, skipped: error.message };
   }
 
-  const url = `${FRONTEND_URL}/reset-password?token_hash=${encodeURIComponent(
-    linkRes.data.properties.hashed_token
-  )}&type=recovery`;
-
-  const html = wrapHtml(
-    `Reset your ${APP_NAME} password`,
-    'We received a request to reset your password. Click below to choose a new password.',
-    'Reset Password',
-    url,
-    "If you didn't request this, ignore this email - your password won't change. The link expires in 12 hours."
-  );
-
-  const sent = await sendViaBrevo(
-    email,
-    `Reset your ${APP_NAME} password`,
-    html
-  );
-
-  return {
-    emailSent: sent,
-  };
+  return { emailSent: true };
 }
 
 export async function sendMfaSecurityAlertEmail(

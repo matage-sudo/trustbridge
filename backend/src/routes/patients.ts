@@ -39,6 +39,13 @@ patientsRouter.get('/', async (req, res, next) => {
     const { tenantId } = currentTenant();
     const search = req.query.search as string | undefined;
     const where: any = { tenantId };
+    // SECURITY: staff/nurses only see patients assigned to them
+    const ctx = currentTenant();
+    if (ctx.role === 'STAFF' || ctx.role === 'NURSE') {
+      const myMembership = await prisma.membership.findFirst({ where: { tenantId, userId: ctx.userId } });
+      if (!myMembership) { res.json({ items: [] }); return; }
+      where.primaryDoctorId = myMembership.id;
+    }
     if (search) {
       where.OR = [
         { firstName: { contains: search, mode: 'insensitive' } },
@@ -46,7 +53,16 @@ patientsRouter.get('/', async (req, res, next) => {
         { hospitalNumber: { contains: search, mode: 'insensitive' } },
       ];
     }
-    const patients = await prisma.patient.findMany({ where, orderBy: { createdAt: 'desc' }, take: 50 });
+    const patients = await prisma.patient.findMany({ 
+      where, 
+      orderBy: { createdAt: 'desc' }, 
+      take: 50,
+      include: {
+        primaryDoctor: {
+          include: { user: { select: { displayName: true, email: true } } }
+        }
+      }
+    });
     res.json({ items: patients });
   } catch (err) { next(err); }
 });

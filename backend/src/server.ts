@@ -38,6 +38,7 @@ import { recordsRouter } from './routes/records';
 import { supportRouter } from './routes/support';
 import { announcementsRouter } from './routes/announcements';
 import { mfaRouter } from './routes/mfa';
+import { patientAssignmentRouter } from './routes/patientAssignment';
 import { pool } from './db';
 import { currentTenant } from './middleware/tenantContext';
 import { prisma } from './models/prisma';
@@ -135,6 +136,7 @@ v1.use('/patients/search', requireAuth, tenantMiddleware, async (req, res) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+v1.use('/patients/assignment', requireMfa, requireRole('HOSPITAL_ADMIN', 'SUPER_ADMIN', 'STAFF'), patientAssignmentRouter);
 v1.use('/staff/ai-risk', aiRiskRouter);
 v1.use('/compliance', complianceRouter);
 v1.use('/admin/users', requireMfa, requireRole('HOSPITAL_ADMIN', 'SUPER_ADMIN'), adminUsersRouter);

@@ -98,6 +98,7 @@ model Tenant {
   securityAlerts     SecurityAlert[]
   rightRequests      DataSubjectRequest[]
   staffAnnouncements StaffAnnouncement[]
+  announcements       Announcement[]
   auditEvents        AuditEvent[]
 
   @@map("tenants")
@@ -184,6 +185,7 @@ model Membership {
   accessRequestsAsRequester AccessRequest[] @relation("AccessRequestsAsRequester")
   accessGrantsAsGrantee     AccessGrant[]   @relation("AccessGrantsAsGrantee")
   dataSubjectRequests       DataSubjectRequest[] @relation("DSRRequester")
+  patientsUnderCare         Patient[]       @relation("PrimaryDoctor")
 
   @@unique([tenantId, userId])
   @@index([tenantId])
@@ -200,6 +202,8 @@ model Patient {
   lastName       String
   dateOfBirth    DateTime @db.Date
   hospitalNumber String   @unique
+  primaryDoctorId String? @db.Uuid
+  primaryDoctor  Membership? @relation("PrimaryDoctor", fields: [primaryDoctorId], references: [id], onDelete: SetNull)
   nationalId             String?
   email                  String?
   phone                  String?
@@ -550,6 +554,24 @@ model StaffAnnouncement {
 
   @@index([tenantId, createdAt])
   @@map("staff_announcements")
+  @@schema("public")
+}
+
+model Announcement {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String   @db.Uuid
+  title              String
+  content            String
+  audience           String
+  targetPatientId    String?  @db.Uuid
+  targetMembershipId String?  @db.Uuid
+  createdByUserId    String?  @db.Uuid
+  createdAt          DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, audience, createdAt])
+  @@map("announcements")
   @@schema("public")
 }
 
