@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
-type Phase = "checking" | "ready" | "invalid" | "success";
+type Phase = "checking" | "code" | "ready" | "invalid" | "success";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -30,92 +30,80 @@ function ResetPasswordForm() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
 
   useEffect(() => {
-    const supabase = createClient();
-    let settled = false;
-
-    const handleSuccess = () => {
-      if (!settled) {
-        settled = true;
-        setPhase("ready");
-      }
-    };
-
-    const handleError = () => {
-      if (!settled) {
-        settled = true;
-        setPhase("invalid");
-      }
-    };
-
-    // 1. Verify secure invitation or password recovery token
+    // If there is a token in the URL, go straight to the password form.
+    // We will NOT verify it yet. We will verify it when they click "Update".
     if (tokenHash) {
-      supabase.auth
-        .verifyOtp({
-          token_hash: tokenHash,
-          type: tokenType,
-        })
-        .then(({ error }) => {
-          if (error) {
-            handleError();
-          } else {
-            handleSuccess();
-          }
-        });
-
+      setPhase("ready");
       return;
     }
 
-    // 2. Fallback: Check for hash fragment (old magic link flow)
-    const hash = window.location.hash.substring(1);
-    const hashParams = new URLSearchParams(hash);
-    const accessToken = hashParams.get("access_token");
-    const refreshToken = hashParams.get("refresh_token");
-
-    if (accessToken && refreshToken) {
-      supabase.auth
-        .setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        })
-        .then(({ error }) => {
-          if (error) {
-            handleError();
-          } else {
-            handleSuccess();
-          }
-        });
-
-      return;
-    }
-
-    // 3. Fallback: Check for an existing session
+    // If no token, check if they are already logged in
+    const supabase = createClient();
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
-        handleSuccess();
+        setPhase("ready");
+      } else {
+        setPhase("code");
       }
     });
+  }, [tokenHash]);
 
-    const { data: sub } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (event === "PASSWORD_RECOVERY" || session) {
-          handleSuccess();
-        }
+  // Code-entry submit (invite flow without clicking the link)
+  const submitCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = code.replace(/\D/g, "");
+
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setError("Enter the email address that received the invite.");
+      return;
+    }
+    if (cleanCode.length !== 6) {
+      setError("Enter the 6-digit code from the email.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      // Try invite first, fall back to recovery (same 6-digit form serves both)
+      let { error: vErr } = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: cleanCode,
+        type: "invite",
+      });
+
+      if (vErr) {
+        const retry = await supabase.auth.verifyOtp({
+          email: cleanEmail,
+          token: cleanCode,
+          type: "recovery",
+        });
+        vErr = retry.error;
       }
-    );
 
-    const t = setTimeout(() => {
-      if (!settled) {
-        handleError();
+      if (vErr) {
+        throw vErr;
       }
-    }, 2500);
 
-    return () => {
-      sub.subscription.unsubscribe();
-      clearTimeout(t);
-    };
-  }, [tokenHash, tokenType]);
+      // Session is now active -> let them set a password
+      setPhase("ready");
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Invalid or expired code. Request a new invite."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,6 +124,16 @@ function ResetPasswordForm() {
     try {
       const supabase = createClient();
 
+      // If they came via a link, verify it NOW at the moment of submission
+      if (tokenHash) {
+        const { error: vErr } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: tokenType,
+        });
+        if (vErr) throw new Error("This link is invalid or has expired. Please request a new one.");
+      }
+
+      // Now update the password
       const { error: updErr } = await supabase.auth.updateUser({
         password,
       });
@@ -200,6 +198,71 @@ function ResetPasswordForm() {
             </Link>
 
             <div className="pt-2">
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 hover:text-blue-600"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to sign in
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {phase === "code" && (
+          <div className="space-y-4">
+            <div className="text-center">
+              <h2 className="text-xl font-semibold dark:text-white mb-1">
+                Enter your invitation code
+              </h2>
+              <p className="text-sm text-slate-500">
+                Check your email for a 6-digit code. It expires in 24 hours.
+              </p>
+            </div>
+
+            {error && (
+              <div className="p-3 rounded-lg bg-red-50 text-red-600 text-sm border border-red-100 dark:bg-red-900/20 dark:border-red-900/50">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={submitCode} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Email
+                </label>
+                <Input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  6-digit code
+                </label>
+                <Input
+                  type="text"
+                  required
+                  inputMode="numeric"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="123456"
+                  className="tracking-[0.5em] text-center text-lg font-mono"
+                />
+              </div>
+
+              <Button type="submit" className="w-full" isLoading={loading}>
+                Verify code
+              </Button>
+            </form>
+
+            <div className="text-center pt-2">
               <Link
                 href="/login"
                 className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 hover:text-blue-600"

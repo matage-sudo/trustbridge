@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, ArrowRight, Mail, Lock, Eye, EyeOff, ShieldAlert } from "lucide-react";
@@ -15,7 +15,33 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  // Clean up stale URL error parameters on load
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("error") || url.searchParams.has("token_hash")) {
+        url.searchParams.delete("error");
+        url.searchParams.delete("token_hash");
+        url.searchParams.delete("type");
+        window.history.replaceState({}, "", url.toString());
+      }
+    }
+  }, []);
+
+  // Clean up stale URL parameters on load
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("error") || url.searchParams.has("token_hash")) {
+        url.searchParams.delete("error");
+        url.searchParams.delete("token_hash");
+        url.searchParams.delete("type");
+        window.history.replaceState({}, "", url.toString());
+      }
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
