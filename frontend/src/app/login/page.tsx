@@ -57,13 +57,48 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex bg-white">
       
-      {/* LEFT SIDE - FULL COVER IMAGE */}
-      <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
-        <img 
-          src="/login-bg.png" 
-          alt="TrustBridge Healthcare" 
-          className="absolute inset-0 w-full h-full object-cover object-center"
-        />
+      {/* LEFT SIDE - TRUSTBRIDGE BRANDING */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-[#0B1B3D] via-[#0f2a5c] to-[#0B1B3D] items-center justify-center p-6 sm:p-12">
+        
+        {/* Soft glowing background elements */}
+        <div className="absolute inset-0 opacity-10 pointer-events-none">
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-400 rounded-full blur-3xl -translate-y-1/3 translate-x-1/3"></div>
+          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-500 rounded-full blur-3xl translate-y-1/3 -translate-x-1/3"></div>
+        </div>
+
+        {/* Content container directly on dark background */}
+        <div className="relative z-10 w-full max-w-2xl flex flex-col items-center text-center">
+          
+          {/* Logo wrapped in a clean white pill */}
+          <div className="bg-white/95 rounded-3xl p-6 sm:p-8 mb-8 shadow-2xl border border-white/20 w-full max-w-[450px] flex justify-center">
+            <img
+              src="/trustbridge-logo.png"
+              alt="TrustBridge Logo"
+              className="w-full max-w-[380px] h-auto object-contain"
+            />
+          </div>
+
+          {/* Divider */}
+          <div className="w-24 h-1 bg-blue-500/30 rounded-full mb-8"></div>
+
+          {/* Welcoming Text */}
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-white mb-4 tracking-tight">
+            Welcome to TrustBridge
+          </h1>
+          
+          <p className="text-blue-100/90 text-base sm:text-lg leading-relaxed max-w-md mb-8">
+            Secure Health. Stronger Together. 
+            <br />
+            Log in to manage your care, access records, and connect with your healthcare team.
+          </p>
+
+          {/* Small trust badge */}
+          <div className="flex items-center gap-2 text-blue-100/80 text-sm font-medium bg-white/10 px-5 py-2.5 rounded-full border border-white/20 backdrop-blur-sm">
+            <ShieldCheck className="w-4 h-4 text-white" />
+            <span>HIPAA Compliant & End-to-End Encrypted</span>
+          </div>
+
+        </div>
       </div>
 
       {/* RIGHT SIDE - LOGIN FORM */}
