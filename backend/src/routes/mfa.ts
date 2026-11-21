@@ -2,6 +2,9 @@ import { Router } from 'express';
 import { prisma } from '../models/prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { randomBytes } from 'node:crypto'; // hardening:mfa-imports
+import { currentTenant } from '../middleware/tenantContext';
+import { requireMfa } from '../middleware/auth'; // hardening:mfa-gate-import
 import { sendMfaSecurityAlertEmail } from '../services/email'; // Added email import
 import {
   generateRegistrationOptions,
@@ -14,7 +17,8 @@ const router = Router();
 const rpName = 'TrustBridge';
 const rpID = process.env.NODE_ENV === 'production' ? 'trustbridgeke-iota.vercel.app' : 'localhost';
 const origin = process.env.NODE_ENV === 'production' ? 'https://trustbridgeke-iota.vercel.app' : 'http://localhost:3000';
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret';
+const JWT_SECRET = process.env.JWT_SECRET as string; // hardening:mfa-secret
+if (!JWT_SECRET || JWT_SECRET.length < 32) throw new Error('JWT_SECRET must be set to a random value of at least 32 characters');
 
 const issueMfaToken = (userId: string) => {
   return jwt.sign({ sub: userId, aal: 'aal2' }, JWT_SECRET, { expiresIn: '12h' });
@@ -24,12 +28,12 @@ const issueMfaToken = (userId: string) => {
 const logAudit = async (userId: string, action: string, outcome: string = 'SUCCESS') => {
   try {
     await prisma.auditEvent.create({
-      data: { actorUserId: userId, action, resourceType: 'MFA', outcome }
+      data: { tenantId: currentTenant().tenantId, actorUserId: userId, action, resourceType: 'MFA', outcome } // hardening:mfa-audit
     });
   } catch (e) { console.error('Audit log failed', e); }
 };
 
-router.post('/passkey/generate-registration-options', async (req, res) => {
+router.post('/passkey/generate-registration-options', requireMfa, async (req, res) => { // hardening:mfa-gate-regopts
   const userId = req.header('x-user-id')!;
   const user = await prisma.userIdentity.findUnique({ where: { id: userId }, include: { passkeys: true } });
 
@@ -41,7 +45,7 @@ router.post('/passkey/generate-registration-options', async (req, res) => {
   res.json(options);
 });
 
-router.post('/passkey/verify-registration', async (req, res) => {
+router.post('/passkey/verify-registration', requireMfa, async (req, res) => { // hardening:mfa-gate-regverify
   const userId = req.header('x-user-id')!;
   const body = req.body;
   
@@ -97,14 +101,14 @@ router.post('/passkey/verify-authentication', async (req, res) => {
   res.status(400).json({ verified: false });
 });
 
-router.post('/recovery/generate', async (req, res) => {
+router.post('/recovery/generate', requireMfa, async (req, res) => { // hardening:mfa-gate-recovery
   const userId = req.header('x-user-id')!;
   await prisma.recoveryCode.deleteMany({ where: { userId, used: false } });
 
   const plainCodes = [];
   const hashedCodes = [];
   for (let i = 0; i < 8; i++) {
-    const code = Math.random().toString(36).substring(2, 10).toUpperCase(); 
+    const code = randomBytes(6).toString('hex').toUpperCase(); // hardening:mfa-codes 
     plainCodes.push(code);
     hashedCodes.push(await bcrypt.hash(code, 10));
   }
@@ -122,6 +126,7 @@ router.post('/recovery/generate', async (req, res) => {
 router.post('/recovery/verify', async (req, res) => {
   const userId = req.header('x-user-id')!;
   const { code } = req.body;
+  if (typeof code !== 'string' || code.length < 6 || code.length > 64) { res.status(400).json({ error: 'Invalid or already used recovery code.' }); return; } // hardening:mfa-code-type
   const codes = await prisma.recoveryCode.findMany({ where: { userId, used: false } });
 
   for (const dbCode of codes) {

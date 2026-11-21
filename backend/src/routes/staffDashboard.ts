@@ -39,13 +39,43 @@ staffDashboardRouter.get('/', async (req, res, next) => {
       select: { id: true, title: true, content: true, createdAt: true },
     });
 
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+    const todayWhere = { tenantId, staffId: me.id, scheduledAt: { gte: startOfDay, lte: endOfDay } };
+
+    const [scheduledToday, completedToday, totalPatients, todayAppts] = await Promise.all([
+      prisma.appointment.count({ where: { ...todayWhere, status: { not: 'CANCELLED' } } }),
+      prisma.appointment.count({ where: { ...todayWhere, status: 'COMPLETED' } }),
+      prisma.patient.count({ where: { tenantId, primaryDoctorId: me.id } }),
+      prisma.appointment.findMany({
+        where: todayWhere,
+        orderBy: { scheduledAt: 'asc' },
+        take: 10,
+        include: { patient: { select: { firstName: true, lastName: true } } },
+      }),
+    ]);
+
+    const STATUS_LABEL: Record<string, string> = { SCHEDULED: 'Confirmed', COMPLETED: 'Completed', CANCELLED: 'Cancelled', NO_SHOW: 'No show' };
+    const todaySchedule = todayAppts.map((a) => ({
+      time: a.scheduledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      patientName: a.patient.firstName + ' ' + a.patient.lastName,
+      reason: a.reason || 'Consultation',
+      status: STATUS_LABEL[a.status] || a.status,
+    }));
+
     res.json({
       stats: {
         pendingEmergencyReviews: emergencyCount,
         pendingRepresentativeRequests: pendingReps,
         role: me.role,
+        scheduledToday,
+        completedToday,
+        totalPatients,
       },
       announcements,
+      todaySchedule,
     });
   } catch (err) { 
     next(err); 

@@ -3,6 +3,7 @@ import { prisma } from '../models/prisma';
 import { currentTenant } from '../middleware/tenantContext';
 import { writeAudit } from '../services/audit';
 import { sendInviteEmail, sendResetEmail } from '../services/email';
+import { requireRole } from '../middleware/requireRole'; // hardening:staff-import
 
 export const staffRouter = Router();
 
@@ -13,6 +14,7 @@ staffRouter.get('/', async (req, res, next) => {
     const memberships = await prisma.membership.findMany({
       where: {
         tenantId,
+        ...(currentTenant().role === 'STAFF' ? { role: { not: 'PATIENT' as const } } : {}), // hardening:staff-list
         ...(search ? { user: { OR: [
           { email: { contains: search, mode: 'insensitive' } },
           { displayName: { contains: search, mode: 'insensitive' } },
@@ -36,10 +38,11 @@ staffRouter.get('/departments', async (_req, res, next) => {
   } catch (err) { next(err); }
 });
 
-staffRouter.post('/create-account', async (req, res, next) => {
+staffRouter.post('/create-account', requireRole('HOSPITAL_ADMIN', 'SUPER_ADMIN'), async (req, res, next) => { // hardening:staff-create
   try {
     const { tenantId, role: requesterRole } = currentTenant();
     const { email, displayName, role } = req.body;
+    if (role !== undefined && !['STAFF', 'HOSPITAL_ADMIN', 'PRIVACY_OFFICER', 'SECURITY_INVESTIGATOR', 'SUPER_ADMIN'].includes(String(role))) { res.status(400).json({ error: 'Invalid role.' }); return; } // hardening:staff-role-create
     if (!email) { res.status(400).json({ error: 'Email is required.' }); return; }
 
     // SECURITY CHECK: Only SUPER_ADMIN can create another SUPER_ADMIN
@@ -84,7 +87,7 @@ staffRouter.post('/create-account', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-staffRouter.post('/reset-password', async (req, res, next) => {
+staffRouter.post('/reset-password', requireRole('HOSPITAL_ADMIN', 'SUPER_ADMIN'), async (req, res, next) => { // hardening:staff-reset
   try {
     const { email } = req.body;
     if (!email) { res.status(400).json({ error: 'Email is required.' }); return; }
@@ -93,11 +96,12 @@ staffRouter.post('/reset-password', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-staffRouter.patch('/:membershipId', async (req, res, next) => {
+staffRouter.patch('/:membershipId', requireRole('HOSPITAL_ADMIN', 'SUPER_ADMIN'), async (req, res, next) => { // hardening:staff-patch
   try {
     const { tenantId, role: requesterRole } = currentTenant();
     const { membershipId } = req.params;
     const { role, departmentId, employmentStatus } = req.body;
+    if (role !== undefined && !['STAFF', 'HOSPITAL_ADMIN', 'PRIVACY_OFFICER', 'SECURITY_INVESTIGATOR', 'SUPER_ADMIN'].includes(String(role))) { res.status(400).json({ error: 'Invalid role.' }); return; } // hardening:staff-role-patch
 
     const existing = await prisma.membership.findFirst({ where: { id: membershipId, tenantId } });
     if (!existing) { res.status(404).json({ error: 'Membership not found.' }); return; }

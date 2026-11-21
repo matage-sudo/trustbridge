@@ -26,6 +26,7 @@ adminUsersRouter.post('/', async (req, res, next) => {
     
     const normalizedEmail = String(email).trim().toLowerCase();
 
+    if (!['PATIENT', 'STAFF', 'HOSPITAL_ADMIN', 'PRIVACY_OFFICER', 'SECURITY_INVESTIGATOR', 'SUPER_ADMIN'].includes(String(role))) { res.status(400).json({ error: 'Invalid role.' }); return; } // hardening:adminusers-role
     // SECURITY CHECK: Only SUPER_ADMIN can create another SUPER_ADMIN
     if (role === 'SUPER_ADMIN' && requesterRole !== 'SUPER_ADMIN') {
       res.status(403).json({ error: 'Forbidden: Only a Super Admin can create another Super Admin.' });
@@ -108,11 +109,11 @@ adminUsersRouter.post('/reset-mfa', async (req, res, next) => {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
-    const { role: requesterRole } = currentTenant(); 
+    const { tenantId, role: requesterRole } = currentTenant(); // hardening:resetmfa-tenant 
     
     const identity = await prisma.userIdentity.findUnique({ 
       where: { email: normalizedEmail },
-      include: { memberships: { where: { active: true } } }
+      include: { memberships: { where: { active: true, tenantId } } } // hardening:resetmfa-include
     });
     
     if (!identity) {
@@ -120,6 +121,7 @@ adminUsersRouter.post('/reset-mfa', async (req, res, next) => {
       return;
     }
 
+    if (identity.memberships.length === 0) { res.status(404).json({ error: 'User not found in this hospital.' }); return; } // hardening:resetmfa-member
     const targetRole = identity.memberships[0]?.role;
     if (targetRole === 'SUPER_ADMIN' && requesterRole !== 'SUPER_ADMIN') {
       res.status(403).json({ error: 'Forbidden: Only a Super Admin can reset another Super Admin\'s MFA.' });
@@ -141,7 +143,7 @@ adminUsersRouter.post('/reset-mfa', async (req, res, next) => {
     const adminId = req.header('x-user-id');
     if (adminId) {
       await prisma.auditEvent.create({
-        data: { actorUserId: adminId, action: 'ADMIN_RESET_MFA', resourceType: 'MFA', outcome: 'SUCCESS', payload: { targetUserEmail: normalizedEmail, targetRole } }
+        data: { /* hardening:resetmfa-audit */ tenantId, actorUserId: adminId, action: 'ADMIN_RESET_MFA', resourceType: 'MFA', outcome: 'SUCCESS', payload: { targetUserEmail: normalizedEmail, targetRole } }
       });
     }
 

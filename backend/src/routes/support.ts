@@ -35,7 +35,9 @@ supportRouter.post('/tickets/:id/reply', async (req, res, next) => {
     const membership = await prisma.membership.findFirst({ where: { tenantId, userId } });
     if (!membership || !['HOSPITAL_ADMIN', 'PRIVACY_OFFICER'].includes(membership.role as string)) { res.status(403).json({ error: 'forbidden' }); return; }
     const { adminReply, status } = req.body;
-    const ticket = await prisma.supportTicket.update({ where: { id: req.params.id }, data: { adminReply, status: status || 'IN_PROGRESS', resolvedAt: status === 'RESOLVED' ? new Date() : undefined } });
+    const owned = await prisma.supportTicket.findFirst({ where: { id: req.params.id, tenantId }, select: { id: true } }); // hardening:support-tenant
+    if (!owned) { res.status(404).json({ error: 'ticket_not_found' }); return; }
+    const ticket = await prisma.supportTicket.update({ where: { id: owned.id }, data: { adminReply, status: status || 'IN_PROGRESS', resolvedAt: status === 'RESOLVED' ? new Date() : undefined } });
     await writeAudit({ action: 'support_ticket.reply', resourceType: 'support_ticket', resourceId: ticket.id });
     res.json(ticket);
   } catch (err) { next(err); }

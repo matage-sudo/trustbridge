@@ -4,6 +4,7 @@ import { currentTenant } from '../middleware/tenantContext';
 import { writeAudit } from '../services/audit';
 import { callerMembership } from '../services/representation';
 import { notifyPatient } from '../services/notify';
+import { requireRole } from '../middleware/requireRole'; // hardening:emerg-import
 import { UUID_RE } from '../services/representation';
 
 export const emergencyRouter = Router();
@@ -17,7 +18,7 @@ function error(res: Response, status: number, code: string, msg?: string) {
 }
 
 // POST /v1/emergency/access
-emergencyRouter.post('/access', async (req, res, next) => {
+emergencyRouter.post('/access', requireRole('STAFF', 'HOSPITAL_ADMIN'), async (req, res, next) => { // hardening:emerg-role
   try {
     const { tenantId, userId } = currentTenant();
     const me = await callerMembership();

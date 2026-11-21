@@ -34,14 +34,14 @@ patientsRouter.get('/me/access-history', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-patientsRouter.get('/', async (req, res, next) => {
+patientsRouter.get('/', requireRole('STAFF', 'HOSPITAL_ADMIN', 'PRIVACY_OFFICER', 'SECURITY_INVESTIGATOR', 'SUPER_ADMIN'), async (req, res, next) => { // hardening:patients-list
   try {
     const { tenantId } = currentTenant();
     const search = req.query.search as string | undefined;
     const where: any = { tenantId };
     // SECURITY: staff/nurses only see patients assigned to them
     const ctx = currentTenant();
-    if (ctx.role === 'STAFF' || ctx.role === 'NURSE') {
+    if (ctx.role === 'STAFF') { // hardening:patients-nurse
       const myMembership = await prisma.membership.findFirst({ where: { tenantId, userId: ctx.userId } });
       if (!myMembership) { res.json({ items: [] }); return; }
       where.primaryDoctorId = myMembership.id;
@@ -67,7 +67,27 @@ patientsRouter.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-patientsRouter.get('/:id', async (req, res, next) => {
+patientsRouter.get('/search', requireRole('STAFF', 'HOSPITAL_ADMIN', 'PRIVACY_OFFICER', 'SECURITY_INVESTIGATOR', 'SUPER_ADMIN'), async (req, res, next) => { // hardening:patients-search
+  try {
+    const { tenantId, userId, role } = currentTenant();
+    const q = String(req.query.q ?? '').trim().slice(0, 100);
+    if (q.length < 2) { res.json({ items: [] }); return; }
+    const where: any = { tenantId, OR: [
+      { firstName: { contains: q, mode: 'insensitive' } },
+      { lastName: { contains: q, mode: 'insensitive' } },
+      { hospitalNumber: { contains: q, mode: 'insensitive' } },
+    ] };
+    if (role === 'STAFF') {
+      const me = await prisma.membership.findFirst({ where: { tenantId, userId }, select: { id: true } });
+      if (!me) { res.json({ items: [] }); return; }
+      where.primaryDoctorId = me.id;
+    }
+    const items = await prisma.patient.findMany({ where, take: 10, select: { id: true, firstName: true, lastName: true, hospitalNumber: true } });
+    res.json({ items });
+  } catch (err) { next(err); }
+});
+
+patientsRouter.get('/:id', requireRole('STAFF', 'HOSPITAL_ADMIN', 'PRIVACY_OFFICER', 'SECURITY_INVESTIGATOR', 'SUPER_ADMIN'), async (req, res, next) => { // hardening:patients-get
   try {
     const { tenantId, userId } = currentTenant();
     const { id } = req.params;

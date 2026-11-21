@@ -2,10 +2,11 @@ import { Router } from 'express';
 import { pool } from '../db';
 import { currentTenant } from '../middleware/tenantContext';
 import { calculatePatientRisk } from '../services/aiRiskEngine';
+import { requireRole } from '../middleware/requireRole'; // hardening:airisk-import
 
 export const aiRiskRouter = Router();
 
-aiRiskRouter.get('/patients', async (req, res, next) => {
+aiRiskRouter.get('/patients', requireRole('STAFF', 'HOSPITAL_ADMIN', 'PRIVACY_OFFICER', 'SECURITY_INVESTIGATOR', 'SUPER_ADMIN'), async (req, res, next) => { // hardening:airisk-role
   try {
     const { tenantId } = currentTenant();
     const patients = await pool.query('SELECT id FROM patients WHERE "tenantId" = $1 LIMIT 50', [tenantId]);
@@ -25,7 +26,7 @@ aiRiskRouter.get('/patients', async (req, res, next) => {
 aiRiskRouter.get('/me', async (req, res, next) => {
   try {
     const { tenantId, userId } = currentTenant();
-    const patientRes = await pool.query('SELECT id FROM patients WHERE "userId" = $1 OR "id" IN (SELECT "patientId" FROM memberships WHERE "userId" = $1) LIMIT 1', [userId]);
+    const patientRes = await pool.query('SELECT id FROM patients WHERE "tenantId" = $2 AND "id" IN (SELECT "patientId" FROM memberships WHERE "userId" = $1 AND "tenantId" = $2) LIMIT 1', [userId, tenantId]); // hardening:airisk-me
     if (!patientRes.rows.length) { res.status(404).json({ error: 'Patient profile not found' }); return; }
     
     const risk = await calculatePatientRisk(tenantId, patientRes.rows[0].id);

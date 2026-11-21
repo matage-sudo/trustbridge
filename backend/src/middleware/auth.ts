@@ -7,9 +7,11 @@ import jwt from 'jsonwebtoken';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const allowDevHeaders = process.env.ALLOW_DEV_HEADERS === 'true';
-const allowAutoProvision = process.env.ALLOW_AUTO_PROVISION === 'true';
+const allowAutoProvision = process.env.ALLOW_AUTO_PROVISION === 'true' && !isProduction; // hardening:autoprov
 const DEFAULT_TENANT_ID = 'ad0a4777-cee4-4e69-894a-410648d8b22a';
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret';
+const JWT_SECRET = process.env.JWT_SECRET as string; // hardening:auth-secret
+if (!JWT_SECRET || JWT_SECRET.length < 32) throw new Error('JWT_SECRET must be set to a random value of at least 32 characters');
+if (isProduction && allowDevHeaders) throw new Error('CRITICAL: ALLOW_DEV_HEADERS enabled in production!');
 
 let _verifyClient: SupabaseClient | null = null;
 function supabaseVerifier(): SupabaseClient {
@@ -45,6 +47,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     res.status(401).json({ error: 'token_verification_failed', detail: err?.message }); return;
   }
 
+  if (user && !user.email_confirmed_at) { res.status(401).json({ error: 'email_not_confirmed' }); return; } // hardening:auth-confirmed
   if (!user?.email) { res.status(401).json({ error: 'token_missing_email' }); return; }
 
   const identityRes = await pool.query('SELECT * FROM user_identities WHERE email = $1', [user.email]);
@@ -74,8 +77,8 @@ export function requireMfa(req: Request, res: Response, next: NextFunction) {
     const customMfaToken = req.header('x-mfa-token');
     if (customMfaToken) {
       try {
-        const decoded: any = jwt.verify(customMfaToken, JWT_SECRET);
-        if (decoded.aal === 'aal2') return next();
+        const decoded: any = jwt.verify(customMfaToken, JWT_SECRET, { algorithms: ['HS256'] }); // hardening:auth-alg
+        if (decoded.aal === 'aal2' && decoded.sub && decoded.sub === req.header('x-user-id')) return next(); // hardening:auth-sub
       } catch (e) {}
     }
 
@@ -88,7 +91,7 @@ export function requireMfa(req: Request, res: Response, next: NextFunction) {
     const token = authHeader.slice('Bearer '.length).trim();
     const decoded: any = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
     
-    if (decoded.aal && decoded.aal !== 'aal2') {
+    if (decoded.aal !== 'aal2') { // hardening:auth-failclosed
       res.status(403).json({ 
         error: 'mfa_required', 
         detail: 'You must complete Two-Factor Authentication to access this resource.' 

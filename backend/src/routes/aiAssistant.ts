@@ -31,9 +31,13 @@ aiAssistantRouter.post('/chat', async (req, res, next) => {
       return;
     }
 
+    const safeMessages = (Array.isArray(messages) ? messages : []).slice(-20)
+      .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      .map((m: any) => ({ role: m.role, content: String(m.content).slice(0, 2000) })); // hardening:ai-validate
+    if (safeMessages.length === 0) { res.status(400).json({ error: 'messages_required' }); return; }
     const apiMessages = [
       { role: 'system', content: SYSTEM_PROMPT },
-      ...messages
+      ...safeMessages /* hardening:ai-spread */
     ];
 
     const completion = await openai.chat.completions.create({

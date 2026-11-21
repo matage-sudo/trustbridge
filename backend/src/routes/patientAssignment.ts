@@ -21,12 +21,17 @@ patientAssignmentRouter.post('/assign', async (req, res, next) => {
     });
     if (!doctor) { res.status(404).json({ error: 'Doctor not found.' }); return; }
 
+    if (!patientId || typeof patientId !== 'string') { res.status(400).json({ error: 'patientId is required.' }); return; } // hardening:assign-tenant
+    const existingPatient = await prisma.patient.findFirst({ where: { id: patientId, tenantId } });
+    if (!existingPatient) { res.status(404).json({ error: 'Patient not found.' }); return; }
+    if (existingPatient.primaryDoctorId === doctor.id) { res.status(400).json({ error: 'Patient is already assigned to this doctor.' }); return; }
+    const previousDoctorId = existingPatient.primaryDoctorId;
     const patient = await prisma.patient.update({
       where: { id: patientId },
       data: { primaryDoctorId: doctor.id }
     });
 
-    await writeAudit({ action: 'patient.assign_doctor', resourceType: 'patient', resourceId: patient.id, payload: { doctorId: doctor.id } });
+    await writeAudit({ action: 'patient.assign_doctor', resourceType: 'patient', resourceId: patient.id, payload: { doctorId: doctor.id, previousDoctorId } }); // hardening:assign-audit
     res.json({ success: true, patient });
   } catch (err) { next(err); }
 });

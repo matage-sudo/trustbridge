@@ -46,6 +46,7 @@ import { prisma } from './models/prisma';
 const log = pino({ level: env.LOG_LEVEL });
 export const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', 1); // hardening:trust-proxy
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
   origin: (origin, callback) => {
@@ -94,15 +95,15 @@ v1.use(requireAuth);
 v1.use(tenantMiddleware);
 v1.use(sessionTracker);
 v1.use('/tenants', tenantRouter);
-v1.use('/audit-events', auditRouter);
-v1.use('/dashboard', dashboardRouter);
+v1.use('/audit-events', requireMfa, requireRole('HOSPITAL_ADMIN', 'PRIVACY_OFFICER', 'SECURITY_INVESTIGATOR', 'SUPER_ADMIN'), auditRouter);
+v1.use('/dashboard', requireRole('HOSPITAL_ADMIN', 'PRIVACY_OFFICER', 'SECURITY_INVESTIGATOR', 'SUPER_ADMIN'), dashboardRouter); // hardening:dashboard
 v1.use('/patients', requireMfa, patientsRouter);
 v1.use('/records', requireMfa, recordsRouter);
 v1.use('/support', supportRouter);
 v1.use('/announcements', requireMfa, announcementsRouter);
 v1.use('/staff', requireMfa, requireRole('HOSPITAL_ADMIN', 'STAFF', 'SUPER_ADMIN'), staffRouter);
 v1.use('/appointments', appointmentsRouter);
-v1.use('/consents', consentsRouter);
+v1.use('/consents', requireMfa, consentsRouter);
 v1.use('/access-requests', accessRequestsRouter);
 v1.use('/rights-requests', rightsRouter);
 v1.use('/security', securityRouter);
@@ -123,7 +124,7 @@ const mfaLimiter = rateLimit({
 
 v1.use('/mfa', mfaLimiter, mfaRouter);
 
-v1.use('/patients/search', requireAuth, tenantMiddleware, async (req, res) => {
+v1.use('/patients/search-disabled', requireAuth, tenantMiddleware, async (req, res) => { // hardening:search-dead
   try {
     const { tenantId } = currentTenant();
     const q = req.query.q as string || '';

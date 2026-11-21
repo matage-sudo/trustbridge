@@ -21,6 +21,27 @@ async function resolveContext(req: any, res: any) {
   } else {
     patientId = (req.query.patientId as string) || (req.body?.patientId as string) || null;
     if (!patientId) { res.status(400).json({ error: 'patientId_required' }); return null; }
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(patientId)) { res.status(400).json({ error: 'invalid_patient_id' }); return null; } // hardening:records-gate
+    const pt = await prisma.patient.findFirst({ where: { id: patientId, tenantId }, select: { id: true, primaryDoctorId: true } });
+    if (!pt) { res.status(404).json({ error: 'patient_not_found' }); return null; }
+    if (membership.role === 'STAFF') {
+      const now = new Date();
+      let allowed = pt.primaryDoctorId === membership.id;
+      if (!allowed) {
+        const g = await prisma.accessGrant.findFirst({ where: { tenantId, granteeId: membership.id, patientId, revokedAt: null, expiresAt: { gt: now } }, select: { id: true } });
+        allowed = !!g;
+      }
+      if (!allowed) {
+        const e = await prisma.emergencyAccess.findFirst({ where: { tenantId, patientId, staffMemberId: userId, revokedAt: null, validUntil: { gt: now } }, select: { id: true } });
+        allowed = !!e;
+      }
+      if (!allowed) {
+        await writeAudit({ action: 'record.access_denied', resourceType: 'patient', resourceId: patientId, outcome: 'deny', reasonCode: 'not_assigned_no_grant' });
+        res.status(403).json({ error: 'access_denied' });
+        return null;
+      }
+    }
+    await writeAudit({ action: 'record.accessed', resourceType: 'patient', resourceId: patientId, payload: { path: req.path, method: req.method } });
   }
   return { tenantId, userId, membership, patientId };
 }

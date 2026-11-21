@@ -18,7 +18,9 @@ documentsRouter.post('/upload', upload.single('file'), async (req: any, res, nex
     const r = await resolvePatient(req, 'UPLOAD_DOCUMENTS');
     if (!r.ok) { res.status(r.status).json({ error: r.error }); return; }
 
-    const ext = file.originalname.split('.').pop();
+    const MIME_EXT: Record<string, string> = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' }; // hardening:documents-ext
+    const ext = MIME_EXT[file.mimetype];
+    if (!ext) { res.status(400).json({ error: 'unsupported_file_type' }); return; }
     const fileName = `${tenantId}/${userId}/${Date.now()}.${ext}`;
 
     // 1. Upload to Supabase Storage
