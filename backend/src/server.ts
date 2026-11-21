@@ -99,7 +99,7 @@ v1.use('/dashboard', dashboardRouter);
 v1.use('/patients', requireMfa, patientsRouter);
 v1.use('/records', requireMfa, recordsRouter);
 v1.use('/support', supportRouter);
-v1.use('/announcements', announcementsRouter);
+v1.use('/announcements', requireMfa, announcementsRouter);
 v1.use('/staff', requireMfa, requireRole('HOSPITAL_ADMIN', 'STAFF', 'SUPER_ADMIN'), staffRouter);
 v1.use('/appointments', appointmentsRouter);
 v1.use('/consents', consentsRouter);

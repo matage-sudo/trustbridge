@@ -13,3 +13,9 @@ dist/
 # Editor junk
 *.swp
 *~
+
+*.bak2
+
+*.bak3
+
+inspection_output.txt

@@ -23,11 +23,12 @@ export default function AdminPage() {
     }).finally(() => setLoading(false));
   }, []);
 
+  const stats = summary?.stats || {};
   const KPI_CARDS = [
-    { label: "Active Users", value: summary.activeUsers ?? 0, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-    { label: "Audit Events", value: summary.auditEvents ?? 0, icon: FileText, color: "text-amber-600", bg: "bg-amber-50" },
-    { label: "Patients", value: summary.patients ?? 0, icon: Users, color: "text-green-600", bg: "bg-green-50" },
-    { label: "Appointments", value: summary.appointments ?? 0, icon: Calendar, color: "text-purple-600", bg: "bg-purple-50" },
+    { label: "Active Users", value: stats.activeUsers ?? 0, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "Audit Events", value: stats.totalAuditEvents ?? 0, icon: FileText, color: "text-amber-600", bg: "bg-amber-50" },
+    { label: "Patients", value: stats.patients ?? 0, icon: Users, color: "text-green-600", bg: "bg-green-50" },
+    { label: "Appointments", value: stats.appointments ?? 0, icon: Calendar, color: "text-purple-600", bg: "bg-purple-50" },
   ];
 
   return (

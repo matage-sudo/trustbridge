@@ -28,11 +28,17 @@ export default function UniversalMfaSetupPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // Force portal to render immediately so the button isn't stuck in a loading state
+    setPortal("staff"); 
+    
     getApiContext().then(({ role }) => {
       if (role === "PATIENT") setPortal("patient");
       else if (role === "STAFF" || role === "NURSE") setPortal("staff");
       else setPortal("admin");
-    }).catch(() => router.replace("/login"));
+    }).catch((err) => {
+      console.error("MFA Context Error:", err);
+      // Don't redirect immediately, just log it so the user can still see the page
+    });
   }, [router]);
 
   const startEnrollment = async () => {

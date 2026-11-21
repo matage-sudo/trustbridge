@@ -32,16 +32,11 @@ staffDashboardRouter.get('/', async (req, res, next) => {
       });
     }
 
-    const announcements = await prisma.staffAnnouncement.findMany({
-      where: { tenantId },
+    const announcements = await prisma.announcement.findMany({
+      where: { tenantId, OR: [{ audience: 'EVERYONE' }, { audience: 'ALL_STAFF' }, { audience: 'STAFF_MEMBER', targetMembershipId: me.id }] },
       orderBy: { createdAt: 'desc' },
       take: 5,
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        createdAt: true,
-      },
+      select: { id: true, title: true, content: true, createdAt: true },
     });
 
     res.json({

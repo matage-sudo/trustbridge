@@ -45,6 +45,8 @@ const LINKS: Record<Portal, NavLink[]> = {
     { name: "Access Requests", href: "/admin/access-requests", icon: ClipboardCheck },
     { name: "Representatives", href: "/admin/representatives", icon: Users },
     { name: "Compliance", href: "/admin/compliance", icon: Settings },
+    { name: "Announcements", href: "/admin/announcements", icon: Bell },
+    { name: "Rights Requests", href: "/admin/rights-requests", icon: FileText },
     { name: "Audit Log", href: "/admin/audit", icon: Activity },
   ],
 };

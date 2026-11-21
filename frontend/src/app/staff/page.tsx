@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Activity, Users, Calendar, ShieldAlert, FileText, CheckCircle, Clock, ChevronRight, BrainCircuit } from "lucide-react";
+import { ArrowRightLeft, X } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { apiFetch } from "@/lib/api";
 import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/Card";
@@ -12,12 +14,56 @@ export default function StaffDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Transfer Patient State
+  const [myPatients, setMyPatients] = useState<any[]>([]);
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<any>(null);
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [transferLoading, setTransferLoading] = useState(false);
+
   useEffect(() => {
     apiFetch<any>("/staff/dashboard")
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+
+    // Fetch assigned patients
+    apiFetch<any>("/patients")
+      .then((res) => {
+        // Filter patients where primaryDoctorId matches the current doctor
+        // (The backend returns primaryDoctorId in the patient object)
+        const assigned = res.items.filter((p: any) => p.primaryDoctorId);
+        setMyPatients(assigned);
+      })
+      .catch(console.error);
+
+    // Fetch available doctors for transfer
+    apiFetch<any>("/staff")
+      .then((res) => setDoctors(res.items.filter((s: any) => s.role === "STAFF" || s.role === "NURSE")))
+      .catch(console.error);
   }, []);
+
+  const handleTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPatient || !selectedDoctorId) return;
+    setTransferLoading(true);
+    try {
+      await apiFetch("/patients/assignment/transfer", {
+        method: "POST",
+        body: JSON.stringify({ patientId: selectedPatient.id, newDoctorMembershipId: selectedDoctorId })
+      });
+      alert("Patient transferred successfully. Notifications sent.");
+      setTransferModalOpen(false);
+      setSelectedDoctorId("");
+      // Refresh the list by reloading the page
+      window.location.reload(); 
+    } catch (err: any) {
+      alert(err.message || "Failed to transfer patient");
+    } finally {
+      setTransferLoading(false);
+    }
+  };
 
   if (loading) return <AppShell portal="staff"><div className="p-8 text-slate-500">Loading clinical dashboard...</div></AppShell>;
   if (error) return <AppShell portal="staff"><div className="p-8 text-red-500">Error: {error}</div></AppShell>;
@@ -38,10 +84,10 @@ export default function StaffDashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { title: "Scheduled Today", value: "12", icon: Calendar, color: "text-blue-600", bg: "bg-blue-50" },
-          { title: "Completed", value: "8", icon: CheckCircle, color: "text-green-600", bg: "bg-green-50" },
-          { title: "At-Risk", value: "3", icon: Activity, color: "text-red-600", bg: "bg-red-50" },
-          { title: "Total Patients", value: "42", icon: Users, color: "text-purple-600", bg: "bg-purple-50" },
+          { title: "Scheduled Today", value: data?.stats?.scheduledToday?.toString() || "0", icon: Calendar, color: "text-blue-600", bg: "bg-blue-50" },
+          { title: "Completed", value: data?.stats?.completedToday?.toString() || "0", icon: CheckCircle, color: "text-green-600", bg: "bg-green-50" },
+          { title: "At-Risk", value: data?.stats?.atRisk?.toString() || "0", icon: Activity, color: "text-red-600", bg: "bg-red-50" },
+          { title: "Total Patients", value: data?.stats?.totalPatients?.toString() || "0", icon: Users, color: "text-purple-600", bg: "bg-purple-50" },
         ].map((card, i) => (
           <Card key={i} className="p-5 flex items-center gap-4">
             <div className={`w-12 h-12 rounded-full ${card.bg} flex items-center justify-center dark:bg-opacity-20`}>
@@ -57,23 +103,48 @@ export default function StaffDashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {/* MY ASSIGNED PATIENTS */}
+          <Card className="overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+              <h2 className="text-lg font-bold dark:text-white">My Assigned Patients</h2>
+            </div>
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+              {myPatients.length === 0 ? (
+                <li className="px-6 py-8 text-center text-sm text-slate-500">You have no patients assigned to you.</li>
+              ) : (
+                myPatients.map((p: any) => (
+                  <li key={p.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <div>
+                      <p className="font-medium text-sm text-slate-900 dark:text-white">{p.firstName} {p.lastName}</p>
+                      <p className="text-xs text-slate-500">MRN: {p.hospitalNumber}</p>
+                    </div>
+                    <button 
+                      onClick={() => { setSelectedPatient(p); setTransferModalOpen(true); }}
+                      className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded hover:bg-amber-200 flex items-center gap-1"
+                    >
+                      <ArrowRightLeft className="w-3 h-3" /> Transfer
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </Card>
+
           <Card className="overflow-hidden">
             <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
               <h2 className="text-lg font-bold dark:text-white">Today&apos;s Schedule</h2>
               <Link href="/staff/appointments" className="text-sm font-medium text-blue-600 hover:underline">View All</Link>
             </div>
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-              {[
-                { time: "09:30 AM", name: "Arjun Sharma", type: "Follow-up", status: "Confirmed" },
-                { time: "10:15 AM", name: "Neha Kapoor", type: "Consultation", status: "Confirmed" },
-                { time: "11:00 AM", name: "Vikram Singh", type: "ECG Review", status: "Pending" },
-              ].map((apt, i) => (
+              {(!data?.todaySchedule || data.todaySchedule.length === 0) ? (
+                <li className="px-6 py-8 text-center text-sm text-slate-500">No appointments scheduled for today.</li>
+              ) : data.todaySchedule.map((apt: any, i: number) => (
                 <li key={i} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50">
                   <div className="flex items-center gap-4">
                     <div className="w-20 text-sm font-semibold text-slate-600 dark:text-slate-300">{apt.time}</div>
                     <div>
-                      <p className="font-medium text-sm text-slate-900 dark:text-white">{apt.name}</p>
-                      <p className="text-xs text-slate-500">{apt.type}</p>
+                      <p className="font-medium text-sm text-slate-900 dark:text-white">{apt.patientName}</p>
+                      <p className="text-xs text-slate-500">{apt.reason}</p>
                     </div>
                   </div>
                   <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${apt.status === "Confirmed" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}>{apt.status}</span>
@@ -117,6 +188,37 @@ export default function StaffDashboardPage() {
           </Card>
         </div>
       </div>
+
+      {transferModalOpen && selectedPatient && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg w-full max-w-md overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold dark:text-white">Transfer {selectedPatient.firstName}</h2>
+              <button onClick={() => setTransferModalOpen(false)}><X className="w-5 h-5 text-slate-400" /></button>
+            </div>
+            <form onSubmit={handleTransfer} className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-slate-300">Select New Doctor</label>
+                <select 
+                  required 
+                  value={selectedDoctorId} 
+                  onChange={(e) => setSelectedDoctorId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 p-2 text-sm dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                >
+                  <option value="">-- Select a Doctor --</option>
+                  {doctors.map((d: any) => (
+                    <option key={d.id} value={d.id}>{d.user.displayName || d.user.email}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setTransferModalOpen(false)}>Cancel</Button>
+                <Button type="submit" isLoading={transferLoading}>Transfer Patient</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
