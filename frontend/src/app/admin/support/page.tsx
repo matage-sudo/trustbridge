@@ -126,7 +126,7 @@ export default function AdminSupportPage() {
               <div>
                 <h2 className="font-bold dark:text-white">{selected.subject}</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {selected.category} · {new Date(selected.createdAt).toLocaleString()}
+                  {selected.category} ï¿½ {new Date(selected.createdAt).toLocaleString()}
                 </p>
               </div>
               <button onClick={() => setSelected(null)}><X className="w-5 h-5 text-slate-400" /></button>
