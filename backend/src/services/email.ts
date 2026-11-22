@@ -290,10 +290,16 @@ export async function sendRepresentativeAccessEmail(
 
 export async function sendMfaEmailOtpEmail(to: string, code: string): Promise<{ sent: boolean; skipped?: string }> {
   const subject = "Your TrustBridge verification code";
-  const body = 
-    <p>Your TrustBridge two-factor verification code is:</p>
-    <p style="font-size:28px;font-weight:bold;letter-spacing:6px;text-align:center;padding:12px 0;">${code}</p>
-    <p>This code expires in <strong>10 minutes</strong>. If you did not request it, change your password immediately.</p>
-  ;
-  return sendEmail({ to, subject, html: wrapHtml(subject, body) });
+  
+  // Using your existing wrapHtml(headline, blurb, cta, url, footnote) signature
+  const htmlContent = wrapHtml(
+    subject,
+    "Your TrustBridge two-factor verification code is:",
+    "Verify your login",
+    "", // url (empty because the user enters the code in the app)
+    `<p style="font-size:28px;font-weight:bold;letter-spacing:6px;text-align:center;padding:12px 0;">${code}</p>
+     <p>This code expires in <strong>10 minutes</strong>. If you did not request it, change your password immediately.</p>`
+  );
+
+  return sendEmail(to, subject, htmlContent);
 }
