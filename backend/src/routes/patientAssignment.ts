@@ -117,7 +117,7 @@ patientAssignmentRouter.post('/transfer', async (req, res, next) => {
 
     // Admin visibility: recorded in the audit log below (patient names are never broadcast)
 
-    await writeAudit({ action: 'patient.transfer', resourceType: 'patient', resourceId: patient.id, payload: { fromDoctor: patient.primaryDoctorId, toDoctor: newDoctor.id } });
+    await writeAudit({ action: 'patient.transfer', resourceType: 'patient', resourceId: patient.id, payload: { patientId: patient.id, previousDoctorId: patient.primaryDoctorId, newDoctorMembershipId: newDoctor.id } });
     res.json({ success: true, patient: updatedPatient });
   } catch (err) { next(err); }
 });
