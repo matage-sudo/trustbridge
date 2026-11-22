@@ -96,6 +96,112 @@ staffRouter.post('/reset-password', requireRole('HOSPITAL_ADMIN', 'SUPER_ADMIN')
   } catch (err) { next(err); }
 });
 
+staffRouter.get('/:membershipId/profile', requireRole('HOSPITAL_ADMIN', 'SUPER_ADMIN'), async (req, res, next) => {
+  try {
+    const { tenantId } = currentTenant();
+    const { membershipId } = req.params;
+
+    const doctor = await prisma.membership.findFirst({
+      where: { id: membershipId, tenantId },
+      include: {
+        user: { select: { id: true, email: true, displayName: true } },
+        department: { select: { id: true, name: true } },
+      },
+    });
+    if (!doctor) { res.status(404).json({ error: 'doctor_not_found' }); return; }
+
+    // Patients under care (this doctor is primaryDoctorId)
+    const patientsUnderCare = await prisma.patient.findMany({
+      where: { tenantId, primaryDoctorId: membershipId },
+      select: { id: true, firstName: true, lastName: true, hospitalNumber: true },
+      orderBy: { lastName: 'asc' },
+      take: 200,
+    });
+
+    // Recent notes authored by this doctor
+    const notesRaw = await prisma.patientNote.findMany({
+      where: { tenantId, doctorId: membershipId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+    const notePatientIds = Array.from(new Set(notesRaw.map(n => n.patientId)));
+    const notePatients = notePatientIds.length
+      ? await prisma.patient.findMany({
+          where: { id: { in: notePatientIds } },
+          select: { id: true, firstName: true, lastName: true, hospitalNumber: true },
+        })
+      : [];
+    const notePatientMap = new Map(notePatients.map(p => [p.id, p]));
+    const notesAuthored = notesRaw.map(n => {
+      const p = notePatientMap.get(n.patientId);
+      return {
+        id: n.id, type: n.type, title: n.title, content: n.content, createdAt: n.createdAt,
+        patient: p ? { id: p.id, name: `${p.firstName} ${p.lastName}`, hospitalNumber: p.hospitalNumber } : null,
+      };
+    });
+
+    // Transfers OUT (this doctor transferred patients away)
+    const transfersOutRaw = await prisma.auditEvent.findMany({
+      where: { tenantId, action: 'patient.transfer', actorUserId: doctor.userId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    // Transfers IN (patients assigned to this doctor via someone else's transfer)
+    const transfersInRaw = await prisma.auditEvent.findMany({
+      where: {
+        tenantId, action: 'patient.transfer',
+        NOT: { actorUserId: doctor.userId },
+        payload: { path: ['newDoctorMembershipId'], equals: membershipId },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    const allTransferEvents = [...transfersOutRaw, ...transfersInRaw];
+    const transferPatientIds = Array.from(new Set(
+      allTransferEvents.map(e => (e.payload as any)?.patientId).filter(Boolean)
+    )) as string[];
+    const transferPatients = transferPatientIds.length
+      ? await prisma.patient.findMany({
+          where: { id: { in: transferPatientIds } },
+          select: { id: true, firstName: true, lastName: true, hospitalNumber: true },
+        })
+      : [];
+    const transferPatientMap = new Map(transferPatients.map(p => [p.id, p]));
+
+    const transfersOut = transfersOutRaw.map(e => {
+      const pl = (e.payload as any) || {};
+      const p = pl.patientId ? transferPatientMap.get(pl.patientId) : null;
+      return {
+        id: e.id, createdAt: e.createdAt,
+        patient: p ? { id: p.id, name: `${p.firstName} ${p.lastName}`, hospitalNumber: p.hospitalNumber } : null,
+        newDoctorMembershipId: pl.newDoctorMembershipId ?? null,
+      };
+    });
+    const transfersIn = transfersInRaw.map(e => {
+      const pl = (e.payload as any) || {};
+      const p = pl.patientId ? transferPatientMap.get(pl.patientId) : null;
+      return {
+        id: e.id, createdAt: e.createdAt,
+        patient: p ? { id: p.id, name: `${p.firstName} ${p.lastName}`, hospitalNumber: p.hospitalNumber } : null,
+        fromActorUserId: e.actorUserId ?? null,
+      };
+    });
+
+    res.json({
+      doctor: {
+        id: doctor.id, role: doctor.role, active: doctor.active,
+        employmentStatus: doctor.employmentStatus, createdAt: doctor.createdAt,
+        user: doctor.user, department: doctor.department,
+      },
+      patientsUnderCare,
+      notesAuthored,
+      transfersOut,
+      transfersIn,
+    });
+  } catch (err) { next(err); }
+});
+
 staffRouter.patch('/:membershipId', requireRole('HOSPITAL_ADMIN', 'SUPER_ADMIN'), async (req, res, next) => { // hardening:staff-patch
   try {
     const { tenantId, role: requesterRole } = currentTenant();

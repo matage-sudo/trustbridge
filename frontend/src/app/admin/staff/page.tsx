@@ -91,7 +91,7 @@ export default function AdminStaffPage() {
               {loading ? <tr><td colSpan={4} className="px-6 py-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-500" /></td></tr> : staff.length === 0 ? <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-500">No staff found.</td></tr> : (
                 staff.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <td className="px-6 py-3 font-medium text-slate-900 dark:text-white"><div className="flex items-center gap-2"><UserCog className="w-4 h-4 text-slate-400" />{s.user.displayName || s.user.email.split("@")[0]}</div></td>
+                    <td className="px-6 py-3 font-medium text-slate-900 dark:text-white"><div className="flex items-center gap-2"><UserCog className="w-4 h-4 text-slate-400" /><Link href={`/admin/staff/${s.id}`} className="text-blue-600 hover:underline dark:text-blue-400">{s.user.displayName || s.user.email.split("@")[0]}</Link></div></td>
                     <td className="px-6 py-3 text-slate-600 dark:text-slate-400 font-mono text-xs">{s.user.email}</td>
                     <td className="px-6 py-3">
                       <select 
