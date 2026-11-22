@@ -3,13 +3,14 @@ import { useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/Card";
 import { apiFetch } from "@/lib/api";
-import { Loader2, FlaskConical, Pill, Stethoscope, Activity } from "lucide-react";
+import { Loader2, FlaskConical, Pill, Stethoscope, Activity, FileText } from "lucide-react";
 
 type Lab = { id: string; testName: string; resultValue?: string; referenceRange?: string; status: string; orderedAt: string; };
 type Rx = { id: string; medication: string; dosage: string; frequency: string; status: string; prescribedAt: string; };
 type Dx = { id: string; condition: string; code?: string; status: string; diagnosedAt: string; };
 type Vital = { id: string; bloodPressure?: string; heartRate?: number; temperature?: number; oxygenSat?: number; recordedAt: string; };
-type Tab = "labs" | "prescriptions" | "diagnoses" | "vitals";
+type PatientNote = { id: string; type: string; title: string; content: string; createdAt: string; };
+type Tab = "labs" | "prescriptions" | "diagnoses" | "vitals" | "notes";
 
 export default function PatientRecords() {
   const [tab, setTab] = useState<Tab>("labs");
@@ -17,6 +18,7 @@ export default function PatientRecords() {
   const [rxs, setRxs] = useState<Rx[]>([]);
   const [dxs, setDxs] = useState<Dx[]>([]);
   const [vitals, setVitals] = useState<Vital[]>([]);
+  const [notes, setNotes] = useState<PatientNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -27,8 +29,10 @@ export default function PatientRecords() {
       apiFetch<{ items: Rx[] }>("/records/prescriptions"),
       apiFetch<{ items: Dx[] }>("/records/diagnoses"),
       apiFetch<{ items: Vital[] }>("/records/vitals"),
-    ]).then(([l, r, d, v]) => { setLabs(l.items); setRxs(r.items); setDxs(d.items); setVitals(v.items); })
-      .catch((e) => setError(e.message)).finally(() => setLoading(false));
+      apiFetch<{ items: PatientNote[] }>("/patients/me/notes").catch(() => ({ items: [] as PatientNote[] })),
+    ]).then(([l, r, d, v, n]) => {
+      setLabs(l.items); setRxs(r.items); setDxs(d.items); setVitals(v.items); setNotes(n.items);
+    }).catch((e) => setError(e.message)).finally(() => setLoading(false));
   }, []);
 
   const TABS: { key: Tab; label: string; icon: any }[] = [
@@ -36,6 +40,7 @@ export default function PatientRecords() {
     { key: "prescriptions", label: "Prescriptions", icon: Pill },
     { key: "diagnoses", label: "Diagnoses", icon: Stethoscope },
     { key: "vitals", label: "Vitals", icon: Activity },
+    { key: "notes", label: "Doctor Notes", icon: FileText },
   ];
 
   return (
@@ -89,8 +94,18 @@ export default function PatientRecords() {
                 <div className="col-span-full text-xs text-slate-400 mt-1">{new Date(v.recordedAt).toLocaleString()}</div>
               </div>
             ))}
-            {((tab === "labs" && !labs.length) || (tab === "prescriptions" && !rxs.length) || (tab === "diagnoses" && !dxs.length) || (tab === "vitals" && !vitals.length)) && (
-              <p className="p-6 text-center text-slate-500 text-sm">No {tab} recorded yet.</p>
+            {tab === "notes" && notes.map((n) => (
+              <div key={n.id} className="p-4">
+                <div className="flex justify-between items-start mb-1">
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded ${n.type === "MEDICATION" ? "bg-amber-100 text-amber-800" : n.type === "DIAGNOSIS" ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"}`}>{n.type}</span>
+                  <span className="text-xs text-slate-400">{new Date(n.createdAt).toLocaleString()}</span>
+                </div>
+                <p className="font-medium dark:text-white">{n.title}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 whitespace-pre-wrap">{n.content}</p>
+              </div>
+            ))}
+            {((tab === "labs" && !labs.length) || (tab === "prescriptions" && !rxs.length) || (tab === "diagnoses" && !dxs.length) || (tab === "vitals" && !vitals.length) || (tab === "notes" && !notes.length)) && (
+              <p className="p-6 text-center text-slate-500 text-sm">No {tab === "notes" ? "doctor notes" : tab} recorded yet.</p>
             )}
           </div>
         </Card>

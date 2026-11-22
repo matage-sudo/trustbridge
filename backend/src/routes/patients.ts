@@ -9,6 +9,22 @@ import { sendInviteEmail } from '../services/email';
 
 export const patientsRouter = Router();
 
+patientsRouter.get('/me/notes', requireRole('PATIENT'), async (req, res, next) => {
+  try {
+    const { tenantId, userId } = currentTenant();
+    const membership = await prisma.membership.findFirst({ where: { tenantId, userId } });
+    if (!membership) { res.status(403).json({ error: 'membership_not_found' }); return; }
+    const patientId = (membership as any).patientId;
+    if (!patientId) { res.status(403).json({ error: 'no_patient_linked' }); return; }
+
+    const items = await prisma.patientNote.findMany({
+      where: { tenantId, patientId },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    res.json({ items });
+  } catch (err) { next(err); }
+});
 patientsRouter.get('/me/access-history', async (req, res, next) => {
   try {
     const { tenantId, userId } = currentTenant();

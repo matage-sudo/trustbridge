@@ -21,6 +21,11 @@ export default function PatientRecordPage() {
   const [noteTitle, setNoteTitle] = useState("");
   const [noteContent, setNoteContent] = useState("");
   const [savingNote, setSavingNote] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [transferring, setTransferring] = useState(false);
+  const [transferMsg, setTransferMsg] = useState("");
 
   useEffect(() => {
     apiFetch(`/patients/${id}`)
@@ -47,6 +52,35 @@ export default function PatientRecordPage() {
       setSavingNote(false);
     }
   };
+  const openTransferModal = async () => {
+    setShowTransferModal(true);
+    setTransferMsg("");
+    try {
+      const res = await apiFetch<{ items: any[] }>("/staff");
+      setDoctors(res.items || []);
+    } catch (e) {
+      setDoctors([]);
+    }
+  };
+
+  const handleTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDoctorId) return;
+    setTransferring(true); setTransferMsg("");
+    try {
+      await apiFetch("/patients/assignment/transfer", {
+        method: "POST",
+        body: JSON.stringify({ patientId: patient.id, newDoctorMembershipId: selectedDoctorId }),
+      });
+      setTransferMsg("Patient transferred successfully.");
+      setShowTransferModal(false);
+      setSelectedDoctorId("");
+    } catch (err: any) {
+      setTransferMsg(err.message || "Transfer failed.");
+    } finally {
+      setTransferring(false);
+    }
+  };
 
   if (loading) return <AppShell portal="staff"><div className="p-8">Loading patient record...</div></AppShell>;
   if (error) return <AppShell portal="staff"><div className="p-8 text-red-500">Error: {error}</div></AppShell>;
@@ -63,6 +97,7 @@ export default function PatientRecordPage() {
           </div>
           <div className="ml-auto flex gap-2">
             <Button onClick={() => setShowNoteModal(true)}><Plus className="w-4 h-4 mr-2" /> Add Record/Medication</Button>
+            <Button variant="outline" onClick={openTransferModal}>Transfer to another doctor</Button>
           </div>
         </div>
 
@@ -153,6 +188,41 @@ export default function PatientRecordPage() {
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setShowNoteModal(false)}>Cancel</Button>
                 <Button type="submit" isLoading={savingNote}>Save Record</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+{showTransferModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg w-full max-w-md overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold dark:text-white">Transfer Patient</h2>
+              <button onClick={() => setShowTransferModal(false)} className="text-slate-400 hover:text-slate-600">&times;</button>
+            </div>
+            <form onSubmit={handleTransfer} className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-slate-300">New Doctor</label>
+                <select
+                  required
+                  value={selectedDoctorId}
+                  onChange={(e) => setSelectedDoctorId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 p-2 text-sm dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                >
+                  <option value="">— Select doctor —</option>
+                  {doctors.map((d: any) => (
+                    <option key={d.id} value={d.id}>
+                      {d.user?.displayName || d.displayName || d.email || d.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {transferMsg && (
+                <p className={`text-sm ${transferMsg.includes("success") ? "text-green-600" : "text-red-600"}`}>{transferMsg}</p>
+              )}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setShowTransferModal(false)}>Cancel</Button>
+                <Button type="submit" isLoading={transferring} disabled={!selectedDoctorId}>Transfer</Button>
               </div>
             </form>
           </div>
