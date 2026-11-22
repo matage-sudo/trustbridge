@@ -127,7 +127,7 @@ patientsRouter.get('/:id', requireRole('STAFF', 'HOSPITAL_ADMIN', 'PRIVACY_OFFIC
     const membership = await prisma.membership.findFirst({ where: { tenantId, userId } });
     if (!membership) { res.status(403).json({ error: 'membership_not_found' }); return; }
     const decision = await evaluatePatientAccess(tenantId, membership.id, id);
-    if (decision.decision !== 'ALLOW') {
+    if (decision.decision !== 'ALLOW' && !isPrimaryDoctor) {
       await writeAudit({ action: 'patient.access_denied', resourceType: 'patient', resourceId: id, outcome: 'deny', reasonCode: decision.reason });
       res.status(403).json({ error: 'access_denied', reason: decision.reason, decision: decision.decision });
       return;
