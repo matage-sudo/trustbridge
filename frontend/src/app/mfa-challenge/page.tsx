@@ -11,9 +11,12 @@ import { startAuthentication } from "@simplewebauthn/browser";
 
 export default function MfaChallengePage() {
   const router = useRouter();
-  const [method, setMethod] = useState<"totp" | "passkey" | "recovery">("totp");
+  const [method, setMethod] = useState<"totp" | "passkey" | "recovery" | "email">("totp");
   const [code, setCode] = useState("");
-  const [recoveryCode, setRecoveryCode] = useState("");
+    const [recoveryCode, setRecoveryCode] = useState("");
+  const [emailCode, setEmailCode] = useState("");
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailCooldown, setEmailCooldown] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [factorId, setFactorId] = useState<string | null>(null);
@@ -40,6 +43,33 @@ export default function MfaChallengePage() {
     else if (role === "STAFF" || role === "NURSE") router.replace("/staff");
     else router.replace("/admin");
     router.refresh();
+  };
+
+  const handleSendEmailOtp = async () => {
+    setLoading(true); setError("");
+    try {
+      await apiFetch("/mfa/email/send", { method: "POST" });
+      setEmailSent(true);
+      setEmailCooldown(60);
+      const t = setInterval(() => setEmailCooldown((c) => { if (c <= 1) { clearInterval(t); return 0; } return c - 1; }), 1000);
+    } catch (err: any) {
+      setError(err.message || "Could not send email code.");
+    } finally { setLoading(false); }
+  };
+
+  const handleVerifyEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true); setError("");
+    try {
+      const data: any = await apiFetch("/mfa/email/verify", {
+        method: "POST",
+        body: JSON.stringify({ code: emailCode }),
+      });
+      await finishLogin(data.mfaToken);
+    } catch (err: any) {
+      setError(err.message || "Invalid email code.");
+      setLoading(false);
+    }
   };
 
   const handleVerifyTotp = async (e: React.FormEvent) => {
@@ -121,6 +151,26 @@ export default function MfaChallengePage() {
             </Button>
           </div>
         )}
+        {method === "email" && (
+          <div className="space-y-4">
+            {!emailSent ? (
+              <Button onClick={handleSendEmailOtp} className="w-full h-12" isLoading={loading}>
+                Email me a code
+              </Button>
+            ) : (
+              <form onSubmit={handleVerifyEmail} className="space-y-4">
+                <Input type="text" required maxLength={6} value={emailCode}
+                  onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, ""))}
+                  placeholder="000000" className="text-center text-2xl tracking-widest h-14" />
+                <Button type="submit" className="w-full h-12" isLoading={loading}>Verify Email Code</Button>
+                <button type="button" disabled={emailCooldown > 0} onClick={handleSendEmailOtp}
+                  className="text-sm text-slate-500 hover:text-slate-800 w-full">
+                  {emailCooldown > 0 ? `Resend in ${emailCooldown}s` : "Resend code"}
+                </button>
+              </form>
+            )}
+          </div>
+        )}
 
         {method === "recovery" && (
           <form onSubmit={handleVerifyRecovery} className="space-y-4">
@@ -134,6 +184,7 @@ export default function MfaChallengePage() {
             <>
               <button onClick={() => { setMethod("passkey"); setError(""); }} className="font-medium text-blue-600 hover:underline">Use a passkey or security key</button>
               <button onClick={() => { setMethod("recovery"); setError(""); }} className="text-slate-500 hover:text-slate-700">Use a backup recovery code</button>
+              <button onClick={() => { setMethod("email"); setError(""); setEmailSent(false); }} className="text-slate-500 hover:text-slate-700">Email me a code instead</button>
             </>
           )}
           {method !== "totp" && (

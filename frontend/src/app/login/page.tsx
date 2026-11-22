@@ -51,6 +51,7 @@ export default function LoginPage() {
 
     try {
       const supabase = createClient();
+      try { localStorage.removeItem("mfa_token"); } catch { /* ignore */ } /* hardening:login-mfa */
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
       if (authError) throw authError;
 
@@ -121,7 +122,7 @@ export default function LoginPage() {
           {/* Small trust badge */}
           <div className="flex items-center gap-2 text-blue-100/80 text-sm font-medium bg-white/10 px-5 py-2.5 rounded-full border border-white/20 backdrop-blur-sm">
             <ShieldCheck className="w-4 h-4 text-white" />
-            <span>HIPAA Compliant & End-to-End Encrypted</span>
+            {/* hardening:hipaa */}<span>Secure, audited access to your health records</span>
           </div>
 
         </div>

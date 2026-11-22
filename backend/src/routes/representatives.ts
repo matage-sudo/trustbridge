@@ -326,6 +326,25 @@ adminRepresentativesRouter.post('/:id/verify', async (req, res, next) => {
       payload: { patientId: rep.patientId, authorityType: rep.authorityType, scope: rep.scope },
     });
     await notifyPatient({ tenantId, patientId: rep.patientId, type: 'representative.verified', title: 'Representative verified', message: 'A representative you added has been verified by hospital staff.', resourceType: 'representative', resourceId: rep.id });
+
+    // FIX: Send authorization email ONLY when admin verifies
+    try {
+      const repMembership = await prisma.membership.findUnique({ where: { id: rep.representativeMembershipId }, include: { user: true } });
+                        if (repMembership?.user?.email) {
+        // FIX: Robust access email — invite for new users, recovery link for existing.
+        const { sendRepresentativeAccessEmail } = await import('../services/email');
+        const result = await sendRepresentativeAccessEmail(repMembership.user.email);
+        if (!result.sent) {
+          req.log?.warn({ email: repMembership.user.email, mode: result.mode, err: result.error },
+            'Representative access email was not sent');
+        } else {
+          req.log?.info({ email: repMembership.user.email, mode: result.mode },
+            'Representative access email sent');
+        }
+      }
+    } catch (emailErr) {
+      req.log?.warn({ err: emailErr }, 'Failed to send representative authorization email');
+    }
     res.json(updated);
   } catch (err) { next(err); }
 });

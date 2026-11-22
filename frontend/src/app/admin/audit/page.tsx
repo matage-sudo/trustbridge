@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Search, Loader2, Activity } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiBlob } from "@/lib/api";
 import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -20,6 +20,17 @@ export default function AdminAuditPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleDownload = async () => { /* hardening:audit-download */
+    try {
+      const blob = await apiBlob("/audit-events/export");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "audit-log.csv";
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) { setError(e.message); }
+  };
 
   const filtered = events.filter(e => 
     e.action.toLowerCase().includes(search.toLowerCase()) || 
@@ -38,6 +49,8 @@ export default function AdminAuditPage() {
 
         <Card>
           <div className="p-4 border-b border-slate-200 dark:border-slate-800">
+            {/* hardening:audit-button */}
+            <div className="mb-3 flex justify-end"><button type="button" onClick={handleDownload} className="px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700">Download CSV</button></div>
             <div className="relative max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input placeholder="Filter by action or user ID..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />

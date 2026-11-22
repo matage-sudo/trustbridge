@@ -2,10 +2,10 @@ import { Router } from 'express';
 import { prisma } from '../models/prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { randomBytes } from 'node:crypto'; // hardening:mfa-imports
+import { randomBytes, randomInt } from 'node:crypto'; // hardening:mfa-imports
 import { currentTenant } from '../middleware/tenantContext';
 import { requireMfa } from '../middleware/auth'; // hardening:mfa-gate-import
-import { sendMfaSecurityAlertEmail } from '../services/email'; // Added email import
+import { sendMfaSecurityAlertEmail, sendMfaEmailOtpEmail } from '../services/email'; // Added email import
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -142,4 +142,74 @@ router.post('/recovery/verify', async (req, res) => {
   res.status(400).json({ error: 'Invalid or already used recovery code.' });
 });
 
+
+// ---------- Email OTP ----------
+const EMAIL_OTP_TTL_MS = 10 * 60 * 1000;
+const EMAIL_OTP_MAX_ATTEMPTS = 5;
+
+router.post('/email/send', async (req, res) => {
+  const userId = req.header('x-user-id')!;
+  const user = await prisma.userIdentity.findUnique({ where: { id: userId } });
+  if (!user?.email) return res.status(400).json({ error: 'no_email_on_account' });
+
+  // rate-limit: max 1 send per 60s
+  const recent = await prisma.emailOtp.findFirst({
+    where: { userId, used: false, createdAt: { gte: new Date(Date.now() - 60_000) } },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (recent) return res.status(429).json({ error: 'email_otp_rate_limited', retryAfterSeconds: 60 });
+
+  const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+  const codeHash = await bcrypt.hash(code, 10);
+
+  await prisma.emailOtp.deleteMany({ where: { userId, used: false } });
+  await prisma.emailOtp.create({
+    data: { userId, codeHash, expiresAt: new Date(Date.now() + EMAIL_OTP_TTL_MS) },
+  });
+
+  const result = await sendMfaEmailOtpEmail(user.email, code);
+  if (result.skipped) req.log?.warn({ userId, reason: result.skipped }, 'email_otp_send_skipped');
+
+  await logAudit(userId, 'EMAIL_OTP_SENT');
+  res.json({ sent: true, expiresInSeconds: EMAIL_OTP_TTL_MS / 1000 });
+});
+
+router.post('/email/verify', async (req, res) => {
+  const userId = req.header('x-user-id')!;
+  const { code } = req.body ?? {};
+  if (typeof code !== 'string' || !/^\d{6}$/.test(code)) {
+    return res.status(400).json({ error: 'invalid_code_format' });
+  }
+
+  const otp = await prisma.emailOtp.findFirst({
+    where: { userId, used: false },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!otp) return res.status(400).json({ error: 'no_active_email_otp' });
+  if (otp.expiresAt < new Date()) {
+    await prisma.emailOtp.update({ where: { id: otp.id }, data: { used: true } });
+    return res.status(400).json({ error: 'email_otp_expired' });
+  }
+  if (otp.attempts >= EMAIL_OTP_MAX_ATTEMPTS) {
+    return res.status(429).json({ error: 'email_otp_too_many_attempts' });
+  }
+
+  const ok = await bcrypt.compare(code, otp.codeHash);
+  if (!ok) {
+    await prisma.emailOtp.update({
+      where: { id: otp.id },
+      data: { attempts: { increment: 1 } },
+    });
+    await logAudit(userId, 'EMAIL_OTP_FAILED', 'FAILURE');
+    return res.status(400).json({ error: 'invalid_email_otp' });
+  }
+
+  await prisma.emailOtp.update({ where: { id: otp.id }, data: { used: true } });
+  await logAudit(userId, 'EMAIL_OTP_VERIFIED');
+
+  const user = await prisma.userIdentity.findUnique({ where: { id: userId } });
+  if (user?.email) await sendMfaSecurityAlertEmail(user.email, 'Email OTP used to sign in');
+
+  return res.json({ verified: true, mfaToken: issueMfaToken(userId) });
+});
 export const mfaRouter = router;

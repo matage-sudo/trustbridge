@@ -19,3 +19,5 @@ dist/
 *.bak3
 
 inspection_output.txt
+.vercel
+.env*

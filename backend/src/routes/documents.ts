@@ -1,3 +1,4 @@
+import { prisma } from '../models/prisma';
 import { Router } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import multer from 'multer';
@@ -36,6 +37,28 @@ documentsRouter.post('/upload', upload.single('file'), async (req: any, res, nex
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
       [tenantId, r.patientId, fileName, file.originalname, file.mimetype, file.size]
     );
+
+    // FIX: Notify Doctor and Admin on upload
+    try {
+      const patient = await prisma.patient.findUnique({ 
+        where: { id: r.patientId },
+        include: { primaryDoctor: { include: { user: true } } }
+      });
+      
+            if (patient?.primaryDoctor?.user?.email) {
+         const { sendEmail } = await import('../services/email');
+         await sendEmail(
+           patient.primaryDoctor.user.email,
+           `New Document Uploaded for ${patient.firstName} ${patient.lastName}`,
+           `<p>Hello Dr. ${patient.primaryDoctor.user.displayName || ''},</p>
+            <p>A new document has been uploaded to the vault for your patient <strong>${patient.firstName} ${patient.lastName}</strong>.</p>
+            <p><strong>File:</strong> ${file.originalname}</p>
+            <p>Please log in to the TrustBridge portal to review it.</p>`
+         );
+      }
+    } catch (notifyErr) {
+      req.log?.warn({ err: notifyErr }, 'Failed to send document notifications');
+    }
 
     res.status(201).json(result.rows[0]);
   } catch (err) { next(err); }

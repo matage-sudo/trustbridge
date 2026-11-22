@@ -115,6 +115,7 @@ model UserIdentity {
   memberships   Membership[]
   passkeys      PasskeyCredential[]
   recoveryCodes RecoveryCode[]
+  emailOtps     EmailOtp[]
 
   @@map("user_identities")
   @@schema("public")
@@ -671,5 +672,20 @@ model SupportTicket {
   @@index([tenantId, status])
   @@index([tenantId, userId])
   @@map("support_tickets")
+  @@schema("public")
+}
+
+model EmailOtp {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  user      UserIdentity @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, used, expiresAt])
+  @@map("email_otps")
   @@schema("public")
 }

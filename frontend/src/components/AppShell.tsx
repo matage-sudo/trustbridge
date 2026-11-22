@@ -44,6 +44,7 @@ const LINKS: Record<Portal, NavLink[]> = {
     { name: "Consents", href: "/admin/consents", icon: Shield },
     { name: "Access Requests", href: "/admin/access-requests", icon: ClipboardCheck },
     { name: "Representatives", href: "/admin/representatives", icon: Users },
+  { name: "Support Tickets", href: "/admin/support", icon: LifeBuoy },
     { name: "Compliance", href: "/admin/compliance", icon: Settings },
     { name: "Announcements", href: "/admin/announcements", icon: Bell },
     { name: "Rights Requests", href: "/admin/rights-requests", icon: FileText },
@@ -93,7 +94,8 @@ export default function AppShell({ children, portal }: { children: React.ReactNo
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   const handleLogout = async () => {
-    await createClient().auth.signOut();
+    try { localStorage.removeItem("mfa_token"); } catch { /* ignore */ } /* hardening:logout-mfa */
+await createClient().auth.signOut();
     clearApiCache();
     router.replace("/login");
     router.refresh();

@@ -144,6 +144,38 @@ patientsRouter.post('/', requireRole('HOSPITAL_ADMIN'), async (req, res, next) =
       res.status(400).json({ error: 'missing_required_fields' });
       return;
     }
+    // FIX: Check if the email already exists as a staff member to prevent duplicate identities
+    if (email) {
+      const existingStaffIdentity = await prisma.userIdentity.findUnique({
+        where: { email: String(email).trim().toLowerCase() },
+        include: { memberships: { where: { tenantId } } }
+      });
+      
+      if (existingStaffIdentity && existingStaffIdentity.memberships.length > 0) {
+        const isStaff = existingStaffIdentity.memberships.some(m => m.role !== 'PATIENT');
+        if (isStaff) {
+          res.status(409).json({ error: 'This email belongs to a staff member. Please link accounts or use a different email.' });
+          return;
+        }
+      }
+    }
+
+    // FIX: Check if the email already exists as a staff member to prevent duplicate identities
+    if (email) {
+      const existingStaffIdentity = await prisma.userIdentity.findUnique({
+        where: { email: String(email).trim().toLowerCase() },
+        include: { memberships: { where: { tenantId, active: true } } }
+      });
+      
+      if (existingStaffIdentity && existingStaffIdentity.memberships.length > 0) {
+        const isStaff = existingStaffIdentity.memberships.some(m => m.role !== 'PATIENT');
+        if (isStaff) {
+          res.status(409).json({ error: 'This email belongs to a staff member. Please link accounts or use a different email.' });
+          return;
+        }
+      }
+    }
+
     const patient = await prisma.patient.create({
       data: { tenantId, firstName, lastName, dateOfBirth: new Date(dateOfBirth), hospitalNumber },
     });

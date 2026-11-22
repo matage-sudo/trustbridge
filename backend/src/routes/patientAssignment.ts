@@ -32,6 +32,38 @@ patientAssignmentRouter.post('/assign', async (req, res, next) => {
     });
 
     await writeAudit({ action: 'patient.assign_doctor', resourceType: 'patient', resourceId: patient.id, payload: { doctorId: doctor.id, previousDoctorId } }); // hardening:assign-audit
+    
+    // FIX: Notify Doctor and Patient about assignment
+    try {
+      const doctorDetails = await prisma.membership.findUnique({ where: { id: doctor.id }, include: { user: true } });
+            if (doctorDetails?.user?.email) {
+         const { sendEmail } = await import('../services/email');
+         await sendEmail(
+           doctorDetails.user.email,
+           `New Patient Assigned: ${patient.firstName} ${patient.lastName}`,
+           `<p>Hello Dr. ${doctorDetails.user.displayName || ''},</p>
+            <p>You have been assigned a new patient:</p>
+            <p><strong>${patient.firstName} ${patient.lastName}</strong> (Hospital #${patient.hospitalNumber || 'N/A'})</p>
+            <p>Please log in to the TrustBridge portal to view their records.</p>`
+         );
+      }
+      
+      const patientMember = await prisma.membership.findFirst({ where: { tenantId, patientId: patient.id, role: 'PATIENT' } });
+      if (patientMember) {
+          await prisma.notification.create({
+            data: {
+              tenantId,
+              patientId: patient.id,
+              type: 'SYSTEM',
+              title: 'Care Team Update',
+              message: `You have been assigned to a new doctor: Dr. ${doctorDetails?.user?.displayName || 'your new doctor'}.`,
+            }
+          });
+      }
+    } catch (notifyErr) {
+       req.log?.warn({ err: notifyErr }, 'Failed to send assignment notifications');
+    }
+
     res.json({ success: true, patient });
   } catch (err) { next(err); }
 });
