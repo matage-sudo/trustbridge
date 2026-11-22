@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Shield, ShieldAlert, LayoutDashboard, FileText, Users, Settings, LogOut, Activity, Menu, User, Calendar, ClipboardCheck, BrainCircuit, Bell, LifeBuoy, HelpCircle, HeartPulse } from "lucide-react";
+import { Shield, ShieldAlert, LayoutDashboard, FileText, Users, Settings, LogOut, Activity, Menu, User, Calendar, ClipboardCheck, BrainCircuit, Bell, LifeBuoy, HelpCircle, HeartPulse, Megaphone, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from "react";
 import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";

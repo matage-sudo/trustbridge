@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Activity, Users, Calendar, ShieldAlert, FileText, CheckCircle, Clock, ChevronRight, BrainCircuit } from "lucide-react";
+import { Activity, Users, Calendar, ShieldAlert, FileText, CheckCircle, Clock, ChevronRight, BrainCircuit, Megaphone } from "lucide-react";
 import { ArrowRightLeft, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { apiFetch } from "@/lib/api";
