@@ -114,8 +114,10 @@ export default function StaffDashboardPage() {
               ) : (
                 myPatients.map((p: any) => (
                   <li key={p.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <div>
-                      <p className="font-medium text-sm text-slate-900 dark:text-white">{p.firstName} {p.lastName}</p>
+                                        <div>
+                      <Link href={`/staff/patients/${p.id}`} className="font-medium text-sm text-blue-600 hover:underline dark:text-blue-400">
+                        {p.firstName} {p.lastName}
+                      </Link>
                       <p className="text-xs text-slate-500">MRN: {p.hospitalNumber}</p>
                     </div>
                     <button 

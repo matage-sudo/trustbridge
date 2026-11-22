@@ -15,6 +15,7 @@ const SCOPES = [["VIEW_PROFILE", "Profile"], ["VIEW_DOCUMENTS", "Documents"], ["
 
 export default function EmergencyAccessPage() {
   const [patientId, setPatientId] = useState("");
+  const [patientName, setPatientName] = useState("");
   const [purpose, setPurpose] = useState("UNCONSCIOUS_PATIENT");
   const [justification, setJustification] = useState("");
   const [scope, setScope] = useState<string[]>(["VIEW_PROFILE"]);
@@ -28,8 +29,8 @@ export default function EmergencyAccessPage() {
     e.preventDefault(); setError(""); setSuccess(""); setBusy(true);
     try {
       const r = await apiFetch<any>("/emergency/access", { method: "POST", body: JSON.stringify({ patientId, purpose, justification, scope }) });
-      setSuccess(`Emergency access granted. ${r.warning || ""}`);
-      setPatientId(""); setJustification(""); setScope(["VIEW_PROFILE"]);
+      setSuccess(`Emergency access granted for ${patientName}. ${r.warning || ""}`);
+      setPatientId(""); setPatientName(""); setJustification(""); setScope(["VIEW_PROFILE"]);
     } catch (e: any) {
       if (e.message?.includes("already_active")) setError("An active emergency grant already exists for this patient.");
       else if (e.message?.includes("justification_too_short")) setError("Justification must be at least 20 characters.");
@@ -56,7 +57,11 @@ export default function EmergencyAccessPage() {
 
         <Card className="p-6">
           <form onSubmit={submit} className="space-y-4">
-            <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Patient ID (UUID)</label><Input required value={patientId} onChange={(e) => setPatientId(e.target.value.trim())} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /></div>
+            <div>
+              <label className="block text-sm font-medium mb-1 dark:text-slate-300">Search Patient</label>
+              <PatientSearch onSelect={(id, name) => { setPatientId(id); setPatientName(name); }} />
+              {patientId && <p className="mt-2 text-sm text-green-600 font-medium">Selected: {patientName} ({patientId})</p>}
+            </div>
             <div><label className="block text-sm font-medium mb-1 dark:text-slate-300">Emergency Purpose</label><select className="w-full rounded-lg border border-slate-300 p-2 text-sm dark:bg-slate-900 dark:border-slate-700 dark:text-white" value={purpose} onChange={(e) => setPurpose(e.target.value)}>{PURPOSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
             <div>
               <label className="block text-sm font-medium mb-2 dark:text-slate-300">Access Scope</label>

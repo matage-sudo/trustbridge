@@ -87,6 +87,23 @@ patientsRouter.get('/search', requireRole('STAFF', 'HOSPITAL_ADMIN', 'PRIVACY_OF
   } catch (err) { next(err); }
 });
 
+patientsRouter.post('/:id/notes', requireRole('STAFF', 'HOSPITAL_ADMIN', 'SUPER_ADMIN'), async (req, res, next) => {
+  try {
+    const { tenantId, userId } = currentTenant();
+    const { id } = req.params;
+    const { type, title, content } = req.body;
+    const myMembership = await prisma.membership.findFirst({ where: { tenantId, userId } });
+    if (!myMembership) { res.status(403).json({ error: 'membership_not_found' }); return; }
+
+    const note = await prisma.patientNote.create({
+      data: { tenantId, patientId: id, doctorId: myMembership.id, type, title, content }
+    });
+
+    await writeAudit({ action: 'patient.add_note', resourceType: 'patient', resourceId: id, payload: { noteId: note.id, type } });
+    res.status(201).json(note);
+  } catch (err) { next(err); }
+});
+
 patientsRouter.get('/:id', requireRole('STAFF', 'HOSPITAL_ADMIN', 'PRIVACY_OFFICER', 'SECURITY_INVESTIGATOR', 'SUPER_ADMIN'), async (req, res, next) => { // hardening:patients-get
   try {
     const { tenantId, userId } = currentTenant();
@@ -99,10 +116,20 @@ patientsRouter.get('/:id', requireRole('STAFF', 'HOSPITAL_ADMIN', 'PRIVACY_OFFIC
       res.status(403).json({ error: 'access_denied', reason: decision.reason, decision: decision.decision });
       return;
     }
-    const patient = await prisma.patient.findFirst({ where: { id, tenantId } });
+        const patient = await prisma.patient.findFirst({ 
+      where: { id, tenantId },
+      include: {
+        representatives: true,
+        primaryDoctor: { include: { user: { select: { displayName: true, email: true } } } }
+      }
+    });
     if (!patient) { res.status(404).json({ error: 'not_found' }); return; }
+    
+    // Fetch recent medical notes/medications
+    const notes = await prisma.patientNote.findMany({ where: { patientId: id, tenantId }, orderBy: { createdAt: 'desc' }, take: 20 });
+    
     await writeAudit({ action: 'patient.viewed', resourceType: 'patient', resourceId: id, payload: { decisionReason: decision.reason, grantId: decision.grantId } });
-    res.json(patient);
+    res.json({ ...patient, medicalNotes: notes });
   } catch (err) { next(err); }
 });
 

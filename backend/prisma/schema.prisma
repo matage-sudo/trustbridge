@@ -100,6 +100,8 @@ model Tenant {
   staffAnnouncements StaffAnnouncement[]
   announcements       Announcement[]
   auditEvents        AuditEvent[]
+  patientNotes      PatientNote[]
+
 
   @@map("tenants")
   @@schema("public")
@@ -228,6 +230,8 @@ model Patient {
   sessions          PatientSession[]
   securityAlerts    SecurityAlert[]
   dataSubjectRequests DataSubjectRequest[]
+  notes             PatientNote[]
+
 
   @@index([tenantId])
   @@map("patients")
@@ -687,5 +691,23 @@ model EmailOtp {
 
   @@index([userId, used, expiresAt])
   @@map("email_otps")
+  @@schema("public")
+}
+
+model PatientNote {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @db.Uuid
+  patientId String   @db.Uuid
+  doctorId  String   @db.Uuid
+  type      String
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, patientId])
+  @@map("patient_notes")
   @@schema("public")
 }
