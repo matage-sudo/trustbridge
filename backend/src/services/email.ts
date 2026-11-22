@@ -1,7 +1,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://trustbridgeke-iota.vercel.app';
 const APP_NAME = 'TrustBridge';
 
 let _supabaseAdmin: SupabaseClient | null = null;
@@ -228,7 +228,7 @@ export async function sendEmail(
 // =====================================================================
 // REPRESENTATIVE ACCESS EMAIL
 // Tries Supabase invite first (new user), falls back to password-reset
-// link (existing user). Never throws — logs warnings and returns status.
+// link (existing user). Never throws â€” logs warnings and returns status.
 // =====================================================================
 export async function sendRepresentativeAccessEmail(
   email: string
