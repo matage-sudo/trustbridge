@@ -31,6 +31,8 @@ const LINKS: Record<Portal, NavLink[]> = {
   ],
   staff: [
     { name: "Dashboard", href: "/staff", icon: LayoutDashboard },
+    { name: "Announcements", href: "/staff/announcements", icon: Megaphone },
+    { name: "Security (MFA)", href: "/mfa-setup", icon: ShieldCheck },
     { name: "My Schedule", href: "/staff/appointments", icon: Calendar },
     { name: "Request Access", href: "/staff/request-access", icon: ClipboardCheck },
     { name: "Emergency", href: "/staff/emergency", icon: ShieldAlert },

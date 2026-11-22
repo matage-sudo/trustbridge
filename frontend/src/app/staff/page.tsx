@@ -33,7 +33,7 @@ export default function StaffDashboardPage() {
       .then((res) => {
         // Filter patients where primaryDoctorId matches the current doctor
         // (The backend returns primaryDoctorId in the patient object)
-        const assigned = res.items.filter((p: any) => p.primaryDoctorId);
+        const assigned = res.items; // Backend already scopes to this doctor for STAFF role
         setMyPatients(assigned);
       })
       .catch(console.error);
@@ -66,7 +66,23 @@ export default function StaffDashboardPage() {
   };
 
   if (loading) return <AppShell portal="staff"><div className="p-8 text-slate-500">Loading clinical dashboard...</div></AppShell>;
-  if (error) return <AppShell portal="staff"><div className="p-8 text-red-500">Error: {error}</div></AppShell>;
+  if (error) {
+    if (error.includes("mfa_required")) {
+      return (
+        <AppShell portal="staff">
+          <div className="flex flex-col items-center justify-center h-[70vh] space-y-4">
+            <ShieldAlert className="w-16 h-16 text-amber-500" />
+            <h2 className="text-2xl font-bold dark:text-white">Two-Factor Authentication Required</h2>
+            <p className="text-slate-500 max-w-md text-center">For security compliance, you must set up Two-Factor Authentication before accessing clinical data.</p>
+            <Link href="/mfa-setup" className="mt-4 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-sm transition-colors">
+              Set Up 2FA Now
+            </Link>
+          </div>
+        </AppShell>
+      );
+    }
+    return <AppShell portal="staff"><div className="p-8 text-red-500">Error: {error}</div></AppShell>;
+}
 
   return (
     <AppShell portal="staff">
@@ -168,6 +184,20 @@ export default function StaffDashboardPage() {
         </div>
 
         <div className="space-y-6">
+          <Card className="p-6">
+            <h2 className="font-bold mb-4 dark:text-white flex items-center gap-2"><Megaphone className="w-5 h-5 text-blue-600" /> Announcements</h2>
+            <div className="space-y-4">
+              {(!data?.announcements || data.announcements.length === 0) ? (
+                <p className="text-sm text-slate-500">No recent announcements.</p>
+              ) : data.announcements.map((a: any) => (
+                <div key={a.id} className="border-b border-slate-100 dark:border-slate-800 pb-3 last:border-0 last:pb-0">
+                  <p className="font-semibold text-sm dark:text-white">{a.title}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 line-clamp-3">{a.content}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">{new Date(a.createdAt).toLocaleDateString()}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
           <Link href="/staff/ai-risk" className="block bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-2xl shadow-sm p-6 hover:opacity-95 transition-opacity">
             <div className="flex items-center gap-3 mb-2"><BrainCircuit className="w-6 h-6" /><h2 className="font-bold text-lg">AI Risk</h2></div>
             <p className="text-sm text-indigo-100 mb-4">Model-assisted risk scoring for the patients on today&apos;s schedule.</p>
