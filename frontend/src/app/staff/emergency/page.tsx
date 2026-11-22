@@ -7,7 +7,6 @@ import { ArrowLeft, ShieldAlert, AlertTriangle, CheckCircle } from "lucide-react
 import { apiFetch } from "@/lib/api";
 import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
 const PURPOSES = [["UNCONSCIOUS_PATIENT", "Patient is unconscious"], ["LIFE_THREATENING", "Life-threatening emergency"], ["SERIOUS_HARM", "Serious harm risk"], ["CRITICAL_CARE", "Urgent critical care"]];

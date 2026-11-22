@@ -116,7 +116,7 @@ patientsRouter.get('/:id', requireRole('STAFF', 'HOSPITAL_ADMIN', 'PRIVACY_OFFIC
       res.status(403).json({ error: 'access_denied', reason: decision.reason, decision: decision.decision });
       return;
     }
-        const patient = await prisma.patient.findFirst({ 
+                const patient = await prisma.patient.findFirst({ 
       where: { id, tenantId },
       include: {
         representatives: true,
@@ -124,12 +124,26 @@ patientsRouter.get('/:id', requireRole('STAFF', 'HOSPITAL_ADMIN', 'PRIVACY_OFFIC
       }
     });
     if (!patient) { res.status(404).json({ error: 'not_found' }); return; }
+
+    // Manually fetch the representative's user details
+    const repIds = patient.representatives.map(r => r.representativeMembershipId);
+    const repMemberships = await prisma.membership.findMany({
+      where: { id: { in: repIds } },
+      include: { user: { select: { displayName: true, email: true } } }
+    });
+    const repMap = new Map(repMemberships.map(m => [m.id, m]));
+
+    const enrichedRepresentatives = patient.representatives.map(r => ({
+      ...r,
+      representativeMembership: repMap.get(r.representativeMembershipId) || null
+    }));
+    if (!patient) { res.status(404).json({ error: 'not_found' }); return; }
     
     // Fetch recent medical notes/medications
     const notes = await prisma.patientNote.findMany({ where: { patientId: id, tenantId }, orderBy: { createdAt: 'desc' }, take: 20 });
     
     await writeAudit({ action: 'patient.viewed', resourceType: 'patient', resourceId: id, payload: { decisionReason: decision.reason, grantId: decision.grantId } });
-    res.json({ ...patient, medicalNotes: notes });
+    res.json({ ...patient, representatives: enrichedRepresentatives, medicalNotes: notes });
   } catch (err) { next(err); }
 });
 
